@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, User, KeyRound, Check, ArrowRight, ShieldCheck, Sparkles, LogOut } from 'lucide-react';
 import { UserProfile } from '@/types';
 import { useCurrentUser } from '@/lib/user';
@@ -18,6 +19,7 @@ export const UserModal: React.FC<UserModalProps> = ({
 }) => {
   const { user, setUser, logout } = useCurrentUser();
 
+  const [mounted, setMounted] = useState(false);
   const [nickname, setNickname] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [pin, setPin] = useState('');
@@ -25,6 +27,10 @@ export const UserModal: React.FC<UserModalProps> = ({
   const [isExistingUser, setIsExistingUser] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -117,9 +123,11 @@ export const UserModal: React.FC<UserModalProps> = ({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden p-6 space-y-5">
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md my-auto rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden p-6 space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -292,6 +300,7 @@ export const UserModal: React.FC<UserModalProps> = ({
           </span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
