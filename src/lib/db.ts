@@ -107,8 +107,18 @@ async function saveToGitHub(fileName: string, contentStr: string, commitMsg: str
 
 // Vercel KV / Upstash Redis Storage Adapter (Fast REST API alternative)
 function getKVConfig() {
-  const url = process.env.KV_REST_API_URL?.trim() || process.env.UPSTASH_REDIS_REST_URL?.trim();
-  const token = process.env.KV_REST_API_TOKEN?.trim() || process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  const url =
+    process.env.KV_REST_API_URL?.trim() ||
+    process.env.UPSTASH_REDIS_REST_URL?.trim() ||
+    process.env.STORAGE_REST_API_URL?.trim() ||
+    process.env.STORAGE_URL?.trim();
+
+  const token =
+    process.env.KV_REST_API_TOKEN?.trim() ||
+    process.env.UPSTASH_REDIS_REST_TOKEN?.trim() ||
+    process.env.STORAGE_REST_API_TOKEN?.trim() ||
+    process.env.STORAGE_TOKEN?.trim();
+
   return { url, token };
 }
 
