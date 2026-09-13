@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NoteHub — Пространство совместных заметок с ИИ-памятью
 
-## Getting Started
+**NoteHub** — это гибрид бесконечного интерактивного стола (Miro / Obsidian Canvas), документов в стиле Notion, системы стрелок и связей, а также умной памяти проектов на базе **Polza.ai** (DeepSeek, GPT-4o, Claude).
 
-First, run the development server:
+---
 
+## 🚀 Ключевые возможности
+
+1. **Бесконечный визуальный стол (Canvas):**
+   - Плавное панорамирование (инструмент «Рука», пробел, колесико) и масштабирование (zoom к курсору).
+   - Стикеры с выбором цвета, закреплением (pin), тегами и чеклистами.
+   - **Открытие в полноценный документ:** клик по карточке открывает развернутый Markdown-редактор с загрузкой фото и управлением связями.
+   - **Инструменты рисования:** свободное рисование карандашом, стрелки связей между мыслями и ластик (`E`) для стирания.
+   - **История действий:** шаг назад / шаг вперед (`Cmd+Z` / `Cmd+Shift+Z`).
+
+2. **🧠 Умная ИИ-память проекта (Polza.ai):**
+   - **⛔ Ограничения & Что НЕ делать:** отслеживание рамок и табу проекта (например: «не менять фирменную палитру», «не делать обязательную регистрацию»).
+   - **❓ Вопросы к заказчику / Блокеры:** список неясностей для подготовки к созвонам.
+   - **📋 Задачи & План:** извлечение action items из заметок с отметкой выполнения и анимацией конфетти.
+   - **🤖 Чат-ассистент:** отвечает на любые вопросы по проекту, помня весь контекст стола.
+   - **Модель по умолчанию:** `deepseek/deepseek-v4.1-flash` через единый API Polza.ai.
+
+3. **🛡️ Безопасность и защита от инъекций:**
+   - Строгая изоляция пользовательских заметок от промпт-инъекций (`<untrusted_user_note>`).
+   - Эвристический детектор атак и сброса системных инструкций.
+   - Защита от Path Traversal и безопасная валидация загружаемых изображений.
+   - Rate limiting на чувствительные API-маршруты.
+
+4. **👥 Совместный доступ по ссылке:**
+   - Генерация ссылки с выбором роли: **Редактор** (может рисовать и менять заметки) или **Читатель** (только просмотр).
+
+5. **💬 Telegram-мост:**
+   - Эндпоинт `/api/telegram/incoming` и встроенный интерактивный симулятор для быстрого сброса мыслей и войсов из чата.
+
+---
+
+## 🛠️ Установка и запуск
+
+### 1. Клонирование и установка зависимостей
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/FlyJikey/NoteHub.git
+cd NoteHub
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Настройка переменных окружения
+Создайте файл `.env.local` в корне проекта (по примеру `.env.example`):
+```env
+POLZA_AI_API_KEY=ваш_ключ_с_polza_ai
+POLZA_DEFAULT_MODEL=deepseek/deepseek-v4.1-flash
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Запуск сервера разработки
+```bash
+npm run dev
+```
+Откройте [http://localhost:3000](http://localhost:3000) в браузере.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📦 Сборка для продакшена
+```bash
+npm run build
+npm start
+```

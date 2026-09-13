@@ -1,0 +1,79 @@
+[
+  {
+    "id": "board_fi89lud_mtz70rz4",
+    "title": "Базальт",
+    "description": "создание сайта компании",
+    "shareToken": "share_nz93nbz_mtz70rz4",
+    "defaultRole": "editor",
+    "createdAt": "2026-09-13T02:26:47.584Z",
+    "updatedAt": "2026-09-13T02:50:57.895Z",
+    "notes": [
+      {
+        "id": "note_ckp1wl6_mtz70xuj",
+        "boardId": "board_fi89lud_mtz70rz4",
+        "x": 276,
+        "y": -26,
+        "width": 320,
+        "height": 240,
+        "title": "Вход в ЛК",
+        "content": "Сделать вход через Яндекс, ВК",
+        "color": "#bae6fd",
+        "tags": [],
+        "checklists": [],
+        "images": [],
+        "createdAt": "2026-09-13T02:26:55.195Z",
+        "updatedAt": "2026-09-13T02:27:25.653Z",
+        "pinned": false
+      },
+      {
+        "id": "note_hmoynly_mtz7umbf",
+        "boardId": "board_fi89lud_mtz70rz4",
+        "x": 689,
+        "y": -11,
+        "width": 320,
+        "height": 240,
+        "title": "обновить сайт",
+        "content": "Переделать дизайн и верстку",
+        "color": "#bae6fd",
+        "tags": [],
+        "checklists": [],
+        "images": [],
+        "createdAt": "2026-09-13T02:49:59.931Z",
+        "updatedAt": "2026-09-13T02:50:24.321Z",
+        "pinned": false
+      }
+    ],
+    "drawings": [
+      {
+        "id": "draw_ll6xfy5_mtz7vnqn",
+        "boardId": "board_fi89lud_mtz70rz4",
+        "type": "arrow",
+        "points": [
+          {
+            "x": 1040.311112190088,
+            "y": 768.3232467124877
+          },
+          {
+            "x": 1040.311112190088,
+            "y": 768.3232467124877
+          }
+        ],
+        "color": "#3b82f6",
+        "strokeWidth": 2.5,
+        "createdAt": "2026-09-13T02:50:48.431Z"
+      }
+    ],
+    "aiMemory": {
+      "summary": "Новый проект. Заметки еще не проанализированы.",
+      "restrictions": [],
+      "clientQuestions": [],
+      "tasks": [],
+      "decisions": [],
+      "lastSyncedAt": "2026-09-13T02:26:47.584Z"
+    },
+    "telegramConfig": {
+      "connected": false,
+      "inviteCode": "tg_42je62m_mtz70rz4"
+    }
+  }
+]
