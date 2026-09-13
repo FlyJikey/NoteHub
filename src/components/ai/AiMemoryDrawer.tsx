@@ -464,15 +464,22 @@ export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
                       </div>
                       <span>{task.text}</span>
                     </button>
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase ${
-                        task.status === 'done'
-                          ? 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300'
-                          : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                      }`}
-                    >
-                      {task.status === 'done' ? 'Сделано' : 'В работе'}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {task.assignedTo && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-900/40">
+                          @{task.assignedTo}
+                        </span>
+                      )}
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase ${
+                          task.status === 'done'
+                            ? 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300'
+                            : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                        }`}
+                      >
+                        {task.status === 'done' ? 'Сделано' : 'В работе'}
+                      </span>
+                    </div>
                   </div>
                 ))}
 

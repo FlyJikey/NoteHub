@@ -185,6 +185,11 @@ export const NoteModal: React.FC<NoteModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {note.author && (
+              <span className="text-[11px] px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-medium">
+                @{note.author}
+              </span>
+            )}
             <span className="text-xs text-neutral-400 flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />
               {formatDate(note.updatedAt)}

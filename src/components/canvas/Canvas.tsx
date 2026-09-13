@@ -10,6 +10,7 @@ import { AiMemoryDrawer } from '../ai/AiMemoryDrawer';
 import { ShareModal } from '../sharing/ShareModal';
 import { TelegramModal } from '../telegram/TelegramModal';
 import { generateId } from '@/lib/utils';
+import { useCurrentUser } from '@/lib/user';
 
 interface CanvasProps {
   initialBoard: Board;
@@ -25,6 +26,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   initialBoard,
   userRole = 'editor',
 }) => {
+  const { user } = useCurrentUser();
   const [board, setBoard] = useState<Board>(initialBoard);
   const isEditable = userRole === 'editor';
 
@@ -60,6 +62,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [filterMyNotes, setFilterMyNotes] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -83,6 +86,7 @@ export const Canvas: React.FC<CanvasProps> = ({
             drawings: updatedBoard.drawings,
             aiMemory: updatedBoard.aiMemory,
             title: updatedBoard.title,
+            updaterNickname: user?.nickname,
           }),
         });
       } catch (err) {
@@ -91,7 +95,7 @@ export const Canvas: React.FC<CanvasProps> = ({
         setIsSaving(false);
       }
     }, 600);
-  }, [isEditable]);
+  }, [isEditable, user]);
 
   // Push new state to history for Undo / Redo
   const pushHistory = useCallback((notes: NoteItem[], drawings: DrawingPath[]) => {
@@ -374,6 +378,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       tags: [],
       checklists: [],
       images: [],
+      author: user?.nickname || undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -388,11 +393,15 @@ export const Canvas: React.FC<CanvasProps> = ({
   };
 
   const handleUpdateNote = (updatedNote: NoteItem) => {
-    const newNotes = board.notes.map((n) => (n.id === updatedNote.id ? updatedNote : n));
+    const stampedNote = {
+      ...updatedNote,
+      updatedBy: user?.nickname || updatedNote.updatedBy,
+    };
+    const newNotes = board.notes.map((n) => (n.id === updatedNote.id ? stampedNote : n));
     const updated = { ...board, notes: newNotes };
     setBoard(updated);
     pushHistory(newNotes, board.drawings);
-    setModalNote(updatedNote);
+    setModalNote(stampedNote);
     triggerSave(updated);
   };
 
@@ -473,19 +482,25 @@ export const Canvas: React.FC<CanvasProps> = ({
 
         {/* Notes Cards Layer */}
         <div className="absolute top-0 left-0 w-full h-full pointer-events-auto">
-          {board.notes.map((note) => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              scale={scale}
-              isSelected={selectedNoteId === note.id}
-              isEditable={isEditable}
-              onSelect={() => setSelectedNoteId(note.id)}
-              onOpenModal={() => setModalNote(note)}
-              onStartDrag={handleStartDragNote}
-              onDelete={handleDeleteNote}
-            />
-          ))}
+          {board.notes.map((note) => {
+            const isMyNote = Boolean(user) && note.author === user?.nickname;
+            const isDimmed = filterMyNotes && Boolean(user) && !isMyNote;
+            return (
+              <NoteCard
+                key={note.id}
+                note={note}
+                scale={scale}
+                isSelected={selectedNoteId === note.id}
+                isEditable={isEditable}
+                isDimmed={isDimmed}
+                isMyNote={isMyNote}
+                onSelect={() => setSelectedNoteId(note.id)}
+                onOpenModal={() => setModalNote(note)}
+                onStartDrag={handleStartDragNote}
+                onDelete={handleDeleteNote}
+              />
+            );
+          })}
         </div>
       </div>
 
@@ -516,6 +531,10 @@ export const Canvas: React.FC<CanvasProps> = ({
         onRedo={handleRedo}
         onClearAllDrawings={handleClearAllDrawings}
         drawingsCount={board.drawings.length}
+        members={board.members}
+        filterMyNotes={filterMyNotes}
+        onToggleFilterMyNotes={() => setFilterMyNotes(!filterMyNotes)}
+        myNotesCount={user ? board.notes.filter((n) => n.author === user.nickname).length : 0}
       />
 
       {/* Full Document View Modal (Notion/Obsidian style) */}

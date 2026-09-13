@@ -8,8 +8,11 @@ import {
 } from 'lucide-react';
 import { Board } from '@/types';
 import { formatDate } from '@/lib/utils';
+import { UserBadge } from '@/components/user/UserBadge';
+import { useCurrentUser } from '@/lib/user';
 
 export default function HomePage() {
+  const { user } = useCurrentUser();
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -45,6 +48,7 @@ export default function HomePage() {
         body: JSON.stringify({
           title: newTitle.trim(),
           description: newDesc.trim(),
+          createdBy: user?.nickname,
         }),
       });
       const data = await res.json();
@@ -91,7 +95,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <UserBadge />
             <button
               onClick={() => setIsCreating(true)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-xs font-bold hover:opacity-90 transition-opacity shadow-sm"
@@ -225,6 +230,12 @@ export default function HomePage() {
 
                     {/* Stats pills */}
                     <div className="flex flex-wrap gap-2 pt-1">
+                      {b.createdBy && (
+                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-100 dark:border-indigo-900/50">
+                          @{b.createdBy}
+                        </span>
+                      )}
+
                       <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-medium">
                         <FileText className="w-3 h-3 text-amber-500" />
                         {b.notes.length} заметок

@@ -5,9 +5,10 @@ import {
   MousePointer, Hand, Plus, PenTool, 
   ArrowUpRight, Eraser, Undo2, Redo2,
   ZoomIn, ZoomOut, RotateCcw, 
-  Share2, Send, Brain, ChevronLeft, CheckCircle2 
+  Share2, Send, Brain, ChevronLeft, CheckCircle2, Users, UserCheck
 } from 'lucide-react';
 import Link from 'next/link';
+import { UserBadge } from '../user/UserBadge';
 
 export type ToolType = 'select' | 'hand' | 'freehand' | 'arrow' | 'eraser';
 
@@ -34,6 +35,10 @@ interface ToolbarProps {
   onRedo: () => void;
   onClearAllDrawings: () => void;
   drawingsCount: number;
+  members?: string[];
+  filterMyNotes?: boolean;
+  onToggleFilterMyNotes?: () => void;
+  myNotesCount?: number;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -59,6 +64,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onRedo,
   onClearAllDrawings,
   drawingsCount,
+  members,
+  filterMyNotes = false,
+  onToggleFilterMyNotes,
+  myNotesCount = 0,
 }) => {
   return (
     <>
@@ -89,8 +98,31 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </div>
         </div>
 
-        {/* Right Side: Telegram, Share, and AI Memory Drawer Toggle */}
+        {/* Right Side: Telegram, Share, User, and AI Memory Drawer Toggle */}
         <div className="flex items-center gap-2 pointer-events-auto">
+          {/* Members list if any */}
+          {members && members.length > 0 && (
+            <div className="hidden lg:flex items-center -space-x-1.5 px-1 py-1 rounded-xl bg-white/80 dark:bg-neutral-900/80 border border-neutral-200/80 dark:border-neutral-800 shadow-sm">
+              {members.slice(0, 3).map((m) => (
+                <div
+                  key={m}
+                  className="w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-400 border border-white dark:border-neutral-900 text-white flex items-center justify-center text-[9px] font-bold uppercase shadow-sm"
+                  title={`Участник проекта: @${m}`}
+                >
+                  {m.slice(0, 1)}
+                </div>
+              ))}
+              {members.length > 3 && (
+                <span className="text-[10px] text-neutral-500 font-bold px-1.5">
+                  +{members.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* User profile / nickname badge */}
+          <UserBadge compact={false} />
+
           {/* Telegram bridge button */}
           <button
             onClick={onOpenTelegramModal}
@@ -191,6 +223,37 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <Plus className="w-4 h-4" />
               <span>Заметка</span>
             </button>
+
+            {/* Filter My Notes Toggle */}
+            {onToggleFilterMyNotes && (
+              <button
+                onClick={onToggleFilterMyNotes}
+                title={
+                  filterMyNotes
+                    ? 'Фильтр активен: подсвечиваются только ваши заметки (клик для сброса)'
+                    : `Подсветить только мои заметки (${myNotesCount})`
+                }
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  filterMyNotes
+                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300 dark:ring-indigo-800'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" />
+                <span className="hidden sm:inline">Мои</span>
+                {myNotesCount > 0 && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      filterMyNotes
+                        ? 'bg-white/20 text-white'
+                        : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300'
+                    }`}
+                  >
+                    {myNotesCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* Freehand Pencil Tool */}
             <button

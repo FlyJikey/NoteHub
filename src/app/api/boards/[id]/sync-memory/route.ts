@@ -8,7 +8,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const board = getBoardById(id);
+    const board = await getBoardById(id);
     if (!board) {
       return NextResponse.json({ error: 'Доска не найдена' }, { status: 404 });
     }
@@ -25,7 +25,7 @@ export async function POST(
     );
 
     board.aiMemory = newAiMemory;
-    saveBoard(board);
+    await saveBoard(board);
 
     return NextResponse.json({ board, aiMemory: newAiMemory });
   } catch (err: any) {

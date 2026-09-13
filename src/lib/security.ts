@@ -23,6 +23,39 @@ const PROMPT_INJECTION_PATTERNS = [
   /\[INST\]/i,
 ];
 
+import crypto from 'crypto';
+
+/**
+ * Normalizes nickname to clean lowercase string
+ */
+export function normalizeNickname(nickname: string): string {
+  if (!nickname || typeof nickname !== 'string') return '';
+  return nickname.trim().toLowerCase().replace(/[@#\s]/g, '');
+}
+
+/**
+ * Validates nickname: Latin or Cyrillic characters, numbers, dashes and underscores, 2-24 characters
+ */
+export function isValidNickname(nickname: string): boolean {
+  const norm = normalizeNickname(nickname);
+  return /^[\p{L}\p{N}_-]{2,24}$/u.test(norm);
+}
+
+/**
+ * Validates 4-6 digit numeric PIN
+ */
+export function isValidPin(pin: string): boolean {
+  if (!pin || typeof pin !== 'string') return false;
+  return /^\d{4,6}$/.test(pin.trim());
+}
+
+/**
+ * Hashes PIN code using sha256 with salt
+ */
+export function hashPin(pin: string): string {
+  return crypto.createHash('sha256').update(pin.trim() + '_notehub_salt').digest('hex');
+}
+
 /**
  * Validates Board ID to strictly alphanumeric and safe dashes/underscores
  * Prevents Directory Traversal attacks (e.g. `../../etc/passwd`)

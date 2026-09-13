@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'boardId обязателен' }, { status: 400 });
     }
 
-    const board = getBoardById(boardId);
+    const board = await getBoardById(boardId);
     if (!board) {
       return NextResponse.json({ error: 'Доска не найдена' }, { status: 404 });
     }
@@ -42,6 +42,7 @@ export async function POST(req: Request) {
       checklists: [],
       images: imageUrl ? [imageUrl] : [],
       pinned: false,
+      author: sender ? `tg_${sender}` : 'telegram',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
     const updatedMemory = await syncBoardMemoryWithAI(board.notes, board.aiMemory);
     board.aiMemory = updatedMemory;
 
-    saveBoard(board);
+    await saveBoard(board);
 
     return NextResponse.json({ success: true, note: newNote, aiMemory: updatedMemory });
   } catch (err: any) {

@@ -12,7 +12,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const board = getBoardById(id);
+  const board = await getBoardById(id);
   return {
     title: board ? `${board.title} — NoteHub` : 'Стол заметок — NoteHub',
     description: 'Интерактивный стол совместных заметок с ИИ-памятью и связями',
@@ -23,7 +23,7 @@ export default async function BoardPage({ params, searchParams }: PageProps) {
   const { id } = await params;
   const { role } = await searchParams;
 
-  const board = getBoardById(id);
+  const board = await getBoardById(id);
   if (!board) {
     notFound();
   }

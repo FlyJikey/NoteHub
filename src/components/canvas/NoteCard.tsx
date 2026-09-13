@@ -12,6 +12,8 @@ interface NoteCardProps {
   scale: number;
   isSelected?: boolean;
   isEditable: boolean;
+  isDimmed?: boolean;
+  isMyNote?: boolean;
   onSelect: () => void;
   onOpenModal: () => void;
   onStartDrag: (e: React.MouseEvent, noteId: string) => void;
@@ -22,6 +24,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({
   note,
   isSelected,
   isEditable,
+  isDimmed,
+  isMyNote,
   onSelect,
   onOpenModal,
   onStartDrag,
@@ -42,9 +46,13 @@ export const NoteCard: React.FC<NoteCardProps> = ({
         transform: `translate(${note.x}px, ${note.y}px)`,
         width: `${note.width || 320}px`,
       }}
-      className={`absolute select-none cursor-grab active:cursor-grabbing rounded-2xl shadow-md transition-all duration-150 group overflow-hidden bg-white dark:bg-neutral-900 border ${
-        isSelected
-          ? 'ring-2 ring-indigo-500 shadow-xl border-indigo-400 dark:border-indigo-500'
+      className={`absolute select-none cursor-grab active:cursor-grabbing rounded-2xl shadow-md transition-all duration-200 group overflow-hidden bg-white dark:bg-neutral-900 border ${
+        isDimmed
+          ? 'opacity-25 blur-[0.3px] hover:opacity-100 hover:blur-none hover:z-20'
+          : isSelected
+          ? 'ring-2 ring-indigo-500 shadow-xl border-indigo-400 dark:border-indigo-500 z-10'
+          : isMyNote
+          ? 'border-indigo-300 dark:border-indigo-700 shadow-lg ring-1 ring-indigo-400/40 hover:shadow-xl'
           : 'border-neutral-200/90 dark:border-neutral-800 hover:shadow-xl hover:border-neutral-300 dark:hover:border-neutral-700'
       }`}
     >
@@ -158,13 +166,22 @@ export const NoteCard: React.FC<NoteCardProps> = ({
 
         {/* Card Footer: Always High Contrast */}
         <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
-          <span>Нажмите для открытия</span>
+          <div className="flex items-center gap-1.5 truncate max-w-[180px]">
+            {note.author ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-neutral-600 dark:text-neutral-300 truncate" title={`Создал: @${note.author}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                @{note.author}
+              </span>
+            ) : (
+              <span>Нажмите для открытия</span>
+            )}
+          </div>
           <button
             onClick={(e) => {
               e.stopPropagation();
               onOpenModal();
             }}
-            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold"
+            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold shrink-0"
           >
             Развернуть →
           </button>

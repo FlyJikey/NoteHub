@@ -6,6 +6,15 @@ export interface ChecklistItem {
   done: boolean;
 }
 
+export interface UserProfile {
+  nickname: string;
+  displayName: string;
+  avatarColor: string;
+  pin?: string;
+  createdAt: string;
+  lastActiveAt: string;
+}
+
 export interface NoteItem {
   id: string;
   boardId: string;
@@ -20,6 +29,8 @@ export interface NoteItem {
   checklists: ChecklistItem[];
   images: string[];
   pinned?: boolean;
+  author?: string;
+  updatedBy?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -90,6 +101,8 @@ export interface Board {
   colorTheme?: string;
   shareToken: string;
   defaultRole: Role;
+  createdBy?: string;
+  members?: string[];
   createdAt: string;
   updatedAt: string;
   notes: NoteItem[];

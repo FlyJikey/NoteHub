@@ -12,7 +12,7 @@ export async function GET(
       return NextResponse.json({ error: 'Неверный идентификатор доски' }, { status: 400 });
     }
 
-    const board = getBoardById(id);
+    const board = await getBoardById(id);
     if (!board) {
       return NextResponse.json({ error: 'Доска не найдена' }, { status: 404 });
     }
@@ -41,7 +41,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Неверный идентификатор доски' }, { status: 400 });
     }
 
-    const existing = getBoardById(id);
+    const existing = await getBoardById(id);
     if (!existing) {
       return NextResponse.json({ error: 'Доска не найдена' }, { status: 404 });
     }
@@ -53,7 +53,15 @@ export async function PUT(
       id: existing.id, // prevent id overwrite
     };
 
-    saveBoard(updatedBoard);
+    // Auto-maintain members list if updater is provided
+    if (updates.updaterNickname) {
+      const cleanUpdater = updates.updaterNickname.toLowerCase().trim();
+      const currentMembers = new Set(updatedBoard.members || []);
+      currentMembers.add(cleanUpdater);
+      updatedBoard.members = Array.from(currentMembers);
+    }
+
+    await saveBoard(updatedBoard);
     return NextResponse.json({ board: updatedBoard });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -70,7 +78,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Неверный идентификатор доски' }, { status: 400 });
     }
 
-    const deleted = deleteBoard(id);
+    const deleted = await deleteBoard(id);
     if (!deleted) {
       return NextResponse.json({ error: 'Доска не найдена' }, { status: 404 });
     }
