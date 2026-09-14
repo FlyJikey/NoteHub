@@ -174,7 +174,7 @@ export const UserModal: React.FC<UserModalProps> = ({
                   autoFocus
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value.toLowerCase().replace(/\s/g, ''))}
-                  placeholder="например: danil"
+                  placeholder="например: user123"
                   className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
