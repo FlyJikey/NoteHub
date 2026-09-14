@@ -139,7 +139,7 @@ export const NoteModal: React.FC<NoteModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
       <div
-        className="relative w-full max-w-3xl rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-5xl rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden flex flex-col max-h-[92vh]"
         style={{ borderTop: `6px solid ${color}` }}
       >
         {/* Top Header Bar */}

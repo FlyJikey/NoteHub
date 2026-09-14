@@ -33,7 +33,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   // Canvas Viewport transform (pan & zoom)
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
-  const [activeTool, setActiveTool] = useState<ToolType>('select');
+  const [activeTool, setActiveTool] = useState<ToolType>('hand');
 
   // History stack for Undo / Redo. Kept as a single state object (stack + index
   // updated together) so pushHistory never has to read a stale `historyIndex`
@@ -254,6 +254,11 @@ export const Canvas: React.FC<CanvasProps> = ({
     if (!el) return;
 
     const handler = (e: WheelEvent) => {
+      // Any overlay (AI memory drawer, note modal, share/telegram modals)
+      // owns its own scrollable lists. Without this guard, preventDefault()
+      // below blocks their native scroll too and zooms the canvas
+      // underneath instead of letting the list scroll.
+      if (isAnyOverlayOpen) return;
       e.preventDefault();
       const zoomFactor = 1.08;
       const newScale = e.deltaY < 0 ? scale * zoomFactor : scale / zoomFactor;
@@ -272,7 +277,7 @@ export const Canvas: React.FC<CanvasProps> = ({
 
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);
-  }, [pan, scale]);
+  }, [pan, scale, isAnyOverlayOpen]);
 
   const screenToWorld = (clientX: number, clientY: number) => {
     if (!containerRef.current) return { x: 0, y: 0 };

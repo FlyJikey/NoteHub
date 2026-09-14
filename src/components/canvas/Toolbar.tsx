@@ -187,18 +187,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         {/* Tool Selectors */}
         <button
-          onClick={() => setActiveTool('select')}
-          title="Выбор и перемещение (V)"
-          className={`p-2 rounded-xl transition-colors ${
-            activeTool === 'select'
-              ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
-              : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-          }`}
-        >
-          <MousePointer className="w-4 h-4" />
-        </button>
-
-        <button
           onClick={() => setActiveTool('hand')}
           title="Рука / Перемещение холста (H или Пробел)"
           className={`p-2 rounded-xl transition-colors ${
@@ -208,6 +196,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           }`}
         >
           <Hand className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={() => setActiveTool('select')}
+          title="Выбор и перемещение (V)"
+          className={`p-2 rounded-xl transition-colors ${
+            activeTool === 'select'
+              ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
+              : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+          }`}
+        >
+          <MousePointer className="w-4 h-4" />
         </button>
 
         {isEditable && (
