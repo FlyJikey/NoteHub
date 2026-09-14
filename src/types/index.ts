@@ -52,6 +52,7 @@ export interface RestrictionItem {
   id: string;
   text: string;
   active: boolean;
+  noteId?: string;
   createdAt: string;
 }
 
@@ -60,6 +61,7 @@ export interface ClientQuestionItem {
   text: string;
   answered: boolean;
   answer?: string;
+  noteId?: string;
   createdAt: string;
 }
 

@@ -37,6 +37,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local JSON storage fallback (boards.json, users.json) — real board content
+# and PIN hashes must never be committed; see src/lib/db.ts's local-fs adapter
+/.data
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

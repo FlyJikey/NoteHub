@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
 import path from 'path';
-import { isAllowedUploadType, checkRateLimit } from '@/lib/security';
+import { isAllowedUploadType, matchesImageMagicBytes, checkRateLimit } from '@/lib/security';
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// Images are inlined as base64 data URIs and stored alongside board data
+// (KV/GitHub/local JSON), the same way Telegram photo uploads already are.
+// Writing to public/uploads at runtime doesn't survive a Vercel deploy
+// (read-only filesystem) or even a `next start` restart (public/ is
+// snapshotted at build time), so keep the limit conservative for inline storage.
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
 export async function POST(req: Request) {
   try {
@@ -25,13 +29,13 @@ export async function POST(req: Request) {
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ error: 'Размер файла превышает 10 МБ' }, { status: 400 });
+      return NextResponse.json({ error: 'Размер файла превышает 2 МБ' }, { status: 400 });
     }
 
     const ext = path.extname(file.name).toLowerCase();
     if (!isAllowedUploadType(file.type, ext)) {
       return NextResponse.json(
-        { error: 'Недопустимый тип файла. Разрешены только изображения (PNG, JPG, WEBP, GIF, SVG)' },
+        { error: 'Недопустимый тип файла. Разрешены только изображения (PNG, JPG, WEBP, GIF)' },
         { status: 400 }
       );
     }
@@ -39,18 +43,14 @@ export async function POST(req: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+    if (!matchesImageMagicBytes(file.type, buffer)) {
+      return NextResponse.json(
+        { error: 'Содержимое файла не соответствует заявленному типу изображения' },
+        { status: 400 }
+      );
     }
 
-    // Secure randomized filename
-    const safeFilename = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
-    const filePath = path.join(uploadsDir, safeFilename);
-
-    fs.writeFileSync(filePath, buffer);
-
-    const url = `/uploads/${safeFilename}`;
+    const url = `data:${file.type};base64,${buffer.toString('base64')}`;
     return NextResponse.json({ url });
   } catch (err: any) {
     console.error('Upload security error:', err);

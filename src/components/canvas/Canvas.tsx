@@ -35,11 +35,16 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [scale, setScale] = useState(1);
   const [activeTool, setActiveTool] = useState<ToolType>('select');
 
-  // History stack for Undo / Redo
-  const [history, setHistory] = useState<HistorySnapshot[]>([
-    { notes: initialBoard.notes, drawings: initialBoard.drawings },
-  ]);
-  const [historyIndex, setHistoryIndex] = useState(0);
+  // History stack for Undo / Redo. Kept as a single state object (stack + index
+  // updated together) so pushHistory never has to read a stale `historyIndex`
+  // out of its closure — two pushes queued in the same batch would otherwise
+  // both trim against the same pre-batch index and one of them would be lost.
+  const MAX_HISTORY = 50;
+  const [historyState, setHistoryState] = useState<{ stack: HistorySnapshot[]; index: number }>({
+    stack: [{ notes: initialBoard.notes, drawings: initialBoard.drawings }],
+    index: 0,
+  });
+  const { stack: history, index: historyIndex } = historyState;
 
   // Interaction states
   const [isPanning, setIsPanning] = useState(false);
@@ -67,6 +72,20 @@ export const Canvas: React.FC<CanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Ids removed locally since the last save. Sent alongside every save so the
+  // server can tell "I deleted this" apart from "my local copy doesn't know
+  // about this yet" when merging concurrent edits from other collaborators
+  // (see mergeById in the boards/[id] PUT route). Never cleared on our own —
+  // resending an already-applied deletion is harmless — except when undo/redo
+  // brings an item back (see reconcileDeletedIds).
+  const deletedNoteIdsRef = useRef<Set<string>>(new Set());
+  const deletedDrawingIdsRef = useRef<Set<string>>(new Set());
+
+  const reconcileDeletedIds = useCallback((notes: NoteItem[], drawings: DrawingPath[]) => {
+    for (const n of notes) deletedNoteIdsRef.current.delete(n.id);
+    for (const d of drawings) deletedDrawingIdsRef.current.delete(d.id);
+  }, []);
+
   // Save board to server (debounced)
   const triggerSave = useCallback((updatedBoard: Board) => {
     if (!isEditable) return;
@@ -78,7 +97,7 @@ export const Canvas: React.FC<CanvasProps> = ({
 
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        await fetch(`/api/boards/${updatedBoard.id}`, {
+        await fetch(`/api/boards/${updatedBoard.id}?token=${encodeURIComponent(updatedBoard.shareToken)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -87,6 +106,8 @@ export const Canvas: React.FC<CanvasProps> = ({
             aiMemory: updatedBoard.aiMemory,
             title: updatedBoard.title,
             updaterNickname: user?.nickname,
+            deletedNoteIds: Array.from(deletedNoteIdsRef.current),
+            deletedDrawingIds: Array.from(deletedDrawingIdsRef.current),
           }),
         });
       } catch (err) {
@@ -99,38 +120,69 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   // Push new state to history for Undo / Redo
   const pushHistory = useCallback((notes: NoteItem[], drawings: DrawingPath[]) => {
-    setHistory((prev) => {
-      const trimmed = prev.slice(0, historyIndex + 1);
-      return [...trimmed, { notes, drawings }];
+    setHistoryState((prev) => {
+      const trimmed = prev.stack.slice(0, prev.index + 1);
+      trimmed.push({ notes, drawings });
+      // Cap the stack so a long editing session doesn't grow it unboundedly.
+      const overflow = trimmed.length - MAX_HISTORY;
+      const stack = overflow > 0 ? trimmed.slice(overflow) : trimmed;
+      return { stack, index: stack.length - 1 };
     });
-    setHistoryIndex((prev) => prev + 1);
-  }, [historyIndex]);
+  }, []);
 
-  // Undo
+  // Undo / Redo are only ever invoked once per discrete user action (a single
+  // keypress or button click), never twice within the same tick, so — unlike
+  // pushHistory — there's no closure-staleness hazard in reading historyState
+  // directly here. Keep setBoard/triggerSave as plain calls in the handler
+  // body: a setState updater must stay a pure function of its previous state,
+  // and React may invoke it more than once (e.g. Strict Mode), which would
+  // silently double-fire those side effects if they lived inside one.
+  // The server merges concurrent saves per-item by `updatedAt` (see mergeById
+  // in the boards/[id] PUT route) so one collaborator's edit can't stomp
+  // another's — whichever note version has the newer timestamp wins. A
+  // restored snapshot's notes still carry their *original* updatedAt, which
+  // is now older than what the server already has stored (the change undo/redo
+  // is reverting). Sent as-is, the merge would keep the server's newer-but-
+  // undone version and silently drop the undo/redo. Stamping "now" onto every
+  // note in the snapshot makes the revert itself the newest write, so it wins.
+  const restampNotesNow = (notes: NoteItem[]): NoteItem[] => {
+    const now = new Date().toISOString();
+    return notes.map((n) => ({ ...n, updatedAt: now }));
+  };
+
   const handleUndo = useCallback(() => {
-    if (historyIndex <= 0) return;
-    const targetIndex = historyIndex - 1;
-    const snapshot = history[targetIndex];
+    if (historyState.index <= 0) return;
+    const targetIndex = historyState.index - 1;
+    const snapshot = historyState.stack[targetIndex];
     if (!snapshot) return;
 
-    const updated = { ...board, notes: snapshot.notes, drawings: snapshot.drawings };
+    const restampedNotes = restampNotesNow(snapshot.notes);
+    const updated = { ...board, notes: restampedNotes, drawings: snapshot.drawings };
+    reconcileDeletedIds(restampedNotes, snapshot.drawings);
     setBoard(updated);
-    setHistoryIndex(targetIndex);
+    setHistoryState((prev) => ({ ...prev, index: targetIndex }));
     triggerSave(updated);
-  }, [history, historyIndex, board, triggerSave]);
+  }, [historyState, board, triggerSave, reconcileDeletedIds]);
 
-  // Redo
   const handleRedo = useCallback(() => {
-    if (historyIndex >= history.length - 1) return;
-    const targetIndex = historyIndex + 1;
-    const snapshot = history[targetIndex];
+    if (historyState.index >= historyState.stack.length - 1) return;
+    const targetIndex = historyState.index + 1;
+    const snapshot = historyState.stack[targetIndex];
     if (!snapshot) return;
 
-    const updated = { ...board, notes: snapshot.notes, drawings: snapshot.drawings };
+    const restampedNotes = restampNotesNow(snapshot.notes);
+    const updated = { ...board, notes: restampedNotes, drawings: snapshot.drawings };
+    reconcileDeletedIds(restampedNotes, snapshot.drawings);
     setBoard(updated);
-    setHistoryIndex(targetIndex);
+    setHistoryState((prev) => ({ ...prev, index: targetIndex }));
     triggerSave(updated);
-  }, [history, historyIndex, board, triggerSave]);
+  }, [historyState, board, triggerSave, reconcileDeletedIds]);
+
+  // Any modal/drawer that owns its own keyboard input (typing, Escape-to-close)
+  // should fully own the keyboard while it's open — canvas shortcuts must not
+  // fire underneath it (e.g. typing "n" in the share-modal shouldn't spawn a note).
+  const isAnyOverlayOpen =
+    modalNote !== null || isShareModalOpen || isTelegramModalOpen || isAiDrawerOpen;
 
   // Keyboard navigation & shortcuts
   useEffect(() => {
@@ -138,6 +190,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
+      if (isAnyOverlayOpen) return;
 
       // Undo / Redo shortcuts (Ctrl+Z / Cmd+Z / Cmd+Shift+Z / Ctrl+Y)
       if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
@@ -162,11 +215,11 @@ export const Canvas: React.FC<CanvasProps> = ({
       } else if (e.key === 'h' || e.key === 'H') {
         setActiveTool('hand');
       } else if (e.key === 'p' || e.key === 'P') {
-        setActiveTool('freehand');
+        if (isEditable) setActiveTool('freehand');
       } else if (e.key === 'a' || e.key === 'A') {
-        setActiveTool('arrow');
+        if (isEditable) setActiveTool('arrow');
       } else if (e.key === 'e' || e.key === 'E') {
-        setActiveTool('eraser');
+        if (isEditable) setActiveTool('eraser');
       } else if (e.key === 'n' || e.key === 'N') {
         if (isEditable) handleAddNote();
       } else if (e.key === 'Escape') {
@@ -187,17 +240,26 @@ export const Canvas: React.FC<CanvasProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isEditable, handleUndo, handleRedo]);
+  }, [isEditable, isAnyOverlayOpen, handleUndo, handleRedo]);
 
-  // Mouse Wheel: Zoom
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const zoomFactor = 1.08;
-    const newScale = e.deltaY < 0 ? scale * zoomFactor : scale / zoomFactor;
-    const clampedScale = Math.min(Math.max(newScale, 0.2), 2.5);
+  // Mouse Wheel: Zoom.
+  // React attaches wheel listeners as passive by default (it delegates to a
+  // root listener registered with passive: true for scroll performance), so
+  // e.preventDefault() inside a JSX onWheel handler is silently ignored and
+  // the page scrolls/zooms underneath the canvas along with our own zoom.
+  // A native listener registered with { passive: false } is the only way to
+  // actually block the default scroll/zoom behavior.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
 
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const zoomFactor = 1.08;
+      const newScale = e.deltaY < 0 ? scale * zoomFactor : scale / zoomFactor;
+      const clampedScale = Math.min(Math.max(newScale, 0.2), 2.5);
+
+      const rect = el.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
@@ -206,8 +268,11 @@ export const Canvas: React.FC<CanvasProps> = ({
 
       setScale(clampedScale);
       setPan({ x: newPanX, y: newPanY });
-    }
-  };
+    };
+
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [pan, scale]);
 
   const screenToWorld = (clientX: number, clientY: number) => {
     if (!containerRef.current) return { x: 0, y: 0 };
@@ -273,6 +338,7 @@ export const Canvas: React.FC<CanvasProps> = ({
             ...n,
             x: Math.round(worldPos.x - dragOffset.x),
             y: Math.round(worldPos.y - dragOffset.y),
+            updatedAt: new Date().toISOString(),
           };
         }
         return n;
@@ -303,6 +369,21 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
   };
 
+  // Finds the note (if any) whose bounding box contains a world-space point.
+  // Used to "drop" an arrow started from a note onto whatever note it's
+  // released over, so it links the two cards instead of just pointing at
+  // fixed canvas coordinates.
+  const findNoteAtWorldPoint = (pt: { x: number; y: number }, excludeId?: string) => {
+    return board.notes.find(
+      (n) =>
+        n.id !== excludeId &&
+        pt.x >= n.x &&
+        pt.x <= n.x + (n.width || 320) &&
+        pt.y >= n.y &&
+        pt.y <= n.y + (n.height || 240)
+    );
+  };
+
   const handleMouseUp = () => {
     if (isPanning) {
       setIsPanning(false);
@@ -315,7 +396,23 @@ export const Canvas: React.FC<CanvasProps> = ({
 
     if (activeDrawing) {
       if (activeDrawing.points && activeDrawing.points.length > 1) {
-        const updatedDrawings = [...board.drawings, activeDrawing];
+        let finalDrawing = activeDrawing;
+
+        // An arrow dragged out from a note's edge (see handleStartDragNote)
+        // carries fromNoteId but no toNoteId yet — set it here if the arrow
+        // was released on top of another note, so DrawingLayer renders it as
+        // a live connector between the two cards' centers (which stays
+        // attached and follows either card when it's moved) instead of a
+        // straight line pinned to the coordinates where it was drawn.
+        if (activeDrawing.type === 'arrow' && activeDrawing.fromNoteId && !activeDrawing.toNoteId) {
+          const endPt = activeDrawing.points[activeDrawing.points.length - 1];
+          const targetNote = findNoteAtWorldPoint(endPt, activeDrawing.fromNoteId);
+          if (targetNote) {
+            finalDrawing = { ...activeDrawing, toNoteId: targetNote.id };
+          }
+        }
+
+        const updatedDrawings = [...board.drawings, finalDrawing];
         const updated = { ...board, drawings: updatedDrawings };
         setBoard(updated);
         pushHistory(board.notes, updatedDrawings);
@@ -406,10 +503,15 @@ export const Canvas: React.FC<CanvasProps> = ({
   };
 
   const handleDeleteNote = (noteId: string) => {
+    const removedDrawings = board.drawings.filter(
+      (d) => d.fromNoteId === noteId || d.toNoteId === noteId
+    );
     const newNotes = board.notes.filter((n) => n.id !== noteId);
     const newDrawings = board.drawings.filter(
       (d) => d.fromNoteId !== noteId && d.toNoteId !== noteId
     );
+    deletedNoteIdsRef.current.add(noteId);
+    for (const d of removedDrawings) deletedDrawingIdsRef.current.add(d.id);
     const updated = { ...board, notes: newNotes, drawings: newDrawings };
     setBoard(updated);
     pushHistory(newNotes, newDrawings);
@@ -419,6 +521,7 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   // Delete Drawing (single line or arrow)
   const handleDeleteDrawing = (drawingId: string) => {
+    deletedDrawingIdsRef.current.add(drawingId);
     const newDrawings = board.drawings.filter((d) => d.id !== drawingId);
     const updated = { ...board, drawings: newDrawings };
     setBoard(updated);
@@ -429,6 +532,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   // Clear all drawings with one click
   const handleClearAllDrawings = () => {
     if (!confirm('Стереть все линии и стрелки с этого стола?')) return;
+    for (const d of board.drawings) deletedDrawingIdsRef.current.add(d.id);
     const updated = { ...board, drawings: [] };
     setBoard(updated);
     pushHistory(board.notes, []);
@@ -447,7 +551,6 @@ export const Canvas: React.FC<CanvasProps> = ({
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      onWheel={handleWheel}
       className={`relative w-screen h-screen overflow-hidden select-none bg-neutral-100 dark:bg-neutral-950 ${
         isPanning || spacePressed || activeTool === 'hand'
           ? 'cursor-grab active:cursor-grabbing'
@@ -540,6 +643,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       {/* Full Document View Modal (Notion/Obsidian style) */}
       {modalNote && (
         <NoteModal
+          key={modalNote.id}
           note={modalNote}
           allNotes={board.notes}
           isEditable={isEditable}

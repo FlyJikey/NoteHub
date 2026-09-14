@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getBoardById, saveBoard } from '@/lib/db';
 import { syncBoardMemoryWithAI } from '@/lib/polza';
+import { safeErrorResponse } from '@/lib/security';
 
 export async function POST(
   req: Request,
@@ -28,8 +29,7 @@ export async function POST(
     await saveBoard(board);
 
     return NextResponse.json({ board, aiMemory: newAiMemory });
-  } catch (err: any) {
-    console.error('Error syncing board memory:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return safeErrorResponse(err, 'Error syncing board memory:');
   }
 }

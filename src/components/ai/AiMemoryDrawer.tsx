@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Board, AiMemoryState, TaskItem, RestrictionItem, ClientQuestionItem } from '@/types';
 import { 
   X, Brain, Sparkles, AlertTriangle, HelpCircle, 
@@ -19,6 +19,12 @@ interface AiMemoryDrawerProps {
 
 type TabType = 'memory' | 'chat';
 
+// Server only ever looks at the last 10 turns (see askProjectAssistant in
+// src/lib/polza.ts), so there's no point sending — or keeping in memory —
+// more than that plus a little headroom for what's currently on screen.
+const MAX_CHAT_HISTORY = 40;
+const CHAT_TURNS_TO_SEND = 10;
+
 export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
   board,
   isOpen,
@@ -27,6 +33,7 @@ export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('memory');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [memory, setMemory] = useState<AiMemoryState>(board.aiMemory);
 
   // New item inputs
@@ -44,14 +51,22 @@ export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isChatSending, setIsChatSending] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMemory(board.aiMemory);
   }, [board.aiMemory]);
 
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [chatMessages, activeTab, isChatSending]);
+
   // Sync memory via Polza.ai
   const handleSyncMemory = async () => {
     setIsSyncing(true);
+    setSyncError(null);
     try {
       const res = await fetch(`/api/boards/${board.id}/sync-memory`, {
         method: 'POST',
@@ -67,9 +82,12 @@ export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
         } catch {
           // ignore
         }
+      } else {
+        setSyncError(data.error || 'Не удалось синхронизировать память проекта.');
       }
     } catch (err) {
       console.error('Failed to sync memory:', err);
+      setSyncError('Сетевая ошибка при синхронизации памяти.');
     } finally {
       setIsSyncing(false);
     }
@@ -185,7 +203,7 @@ export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
 
     const userMsg = { id: generateId('msg'), role: 'user' as const, text: textToSend };
     const updatedMessages = [...chatMessages, userMsg];
-    setChatMessages(updatedMessages);
+    setChatMessages(updatedMessages.slice(-MAX_CHAT_HISTORY));
     if (!presetText) setChatInput('');
     setIsChatSending(true);
 
@@ -194,28 +212,37 @@ export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: updatedMessages.map((m) => ({ role: m.role, content: m.text })),
+          // The server only looks at the last CHAT_TURNS_TO_SEND turns anyway
+          // (see askProjectAssistant) — sending the full history would just be
+          // a growing payload for no benefit.
+          messages: updatedMessages
+            .slice(-CHAT_TURNS_TO_SEND)
+            .map((m) => ({ role: m.role, content: m.text })),
         }),
       });
       const data = await res.json();
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: generateId('msg'),
-          role: 'assistant',
-          text: data.reply || 'Ответ не получен',
-        },
-      ]);
+      setChatMessages((prev) =>
+        [
+          ...prev,
+          {
+            id: generateId('msg'),
+            role: 'assistant' as const,
+            text: data.reply || 'Ответ не получен',
+          },
+        ].slice(-MAX_CHAT_HISTORY)
+      );
     } catch (err) {
       console.error('Chat error:', err);
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: generateId('msg'),
-          role: 'assistant',
-          text: 'Ошибка связи с ИИ-сервером. Проверьте POLZA_AI_API_KEY в .env.local.',
-        },
-      ]);
+      setChatMessages((prev) =>
+        [
+          ...prev,
+          {
+            id: generateId('msg'),
+            role: 'assistant' as const,
+            text: 'Ошибка связи с ИИ-сервером. Проверьте POLZA_AI_API_KEY в .env.local.',
+          },
+        ].slice(-MAX_CHAT_HISTORY)
+      );
     } finally {
       setIsChatSending(false);
     }
@@ -298,6 +325,12 @@ export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
                 {isSyncing ? 'Анализ...' : 'Синхронизировать'}
               </button>
             </div>
+
+            {syncError && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-xs text-rose-700 dark:text-rose-300">
+                {syncError}
+              </div>
+            )}
 
             {/* Project Summary */}
             {memory.summary && (
@@ -550,6 +583,7 @@ export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
                   </div>
                 </div>
               )}
+              <div ref={chatEndRef} />
             </div>
 
             {/* Chat Input */}

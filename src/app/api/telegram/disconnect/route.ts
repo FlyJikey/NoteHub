@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getBoardById, saveBoard } from '@/lib/db';
+import { safeErrorResponse } from '@/lib/security';
 
 export async function POST(req: Request) {
   try {
@@ -21,8 +22,7 @@ export async function POST(req: Request) {
     await saveBoard(board);
 
     return NextResponse.json({ success: true, telegramConfig: board.telegramConfig });
-  } catch (err: any) {
-    console.error('Telegram disconnect error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return safeErrorResponse(err, 'Telegram disconnect error:');
   }
 }

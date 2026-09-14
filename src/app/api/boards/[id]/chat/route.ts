@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getBoardById } from '@/lib/db';
 import { askProjectAssistant } from '@/lib/polza';
+import { safeErrorResponse } from '@/lib/security';
 
 export async function POST(
   req: Request,
@@ -22,8 +23,7 @@ export async function POST(
 
     const reply = await askProjectAssistant(board, messages, apiKey, model);
     return NextResponse.json({ reply });
-  } catch (err: any) {
-    console.error('Error in chat API:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return safeErrorResponse(err, 'Error in chat API:');
   }
 }

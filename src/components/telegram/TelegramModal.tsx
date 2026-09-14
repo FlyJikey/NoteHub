@@ -86,6 +86,7 @@ export const TelegramModal: React.FC<TelegramModalProps> = ({
           boardId: board.id,
           text: testText,
           sender: testSender,
+          inviteCode: board.telegramConfig?.inviteCode,
         }),
       });
       const data = await res.json();

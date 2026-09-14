@@ -104,33 +104,31 @@ ${sanitizedNotesBlocks}
 
     return {
       summary: sanitizeText(parsed.summary || currentMemory.summary, 500),
-      restrictions: (parsed.restrictions || []).map((text: string) => {
-        const clean = sanitizeText(text, 300);
-        const existing = currentMemory.restrictions.find((r) => r.text.toLowerCase() === clean.toLowerCase());
-        return existing || { id: generateId('restr'), text: clean, active: true, createdAt: new Date().toISOString() };
-      }),
-      clientQuestions: (parsed.clientQuestions || []).map((text: string) => {
-        const clean = sanitizeText(text, 300);
-        const existing = currentMemory.clientQuestions.find((q) => q.text.toLowerCase() === clean.toLowerCase());
-        return existing || { id: generateId('q'), text: clean, answered: false, createdAt: new Date().toISOString() };
-      }),
-      tasks: (parsed.tasks || []).map((t: { text: string; status: 'pending' | 'in_progress' | 'done' }) => {
-        const clean = sanitizeText(t.text, 300);
-        const existing = currentMemory.tasks.find((task) => task.text.toLowerCase() === clean.toLowerCase());
-        return (
-          existing || {
-            id: generateId('task'),
-            text: clean,
-            status: t.status === 'done' ? 'done' : 'pending',
-            createdAt: new Date().toISOString(),
-          }
-        );
-      }),
-      decisions: (parsed.decisions || []).map((text: string) => {
-        const clean = sanitizeText(text, 300);
-        const existing = currentMemory.decisions.find((d) => d.text.toLowerCase() === clean.toLowerCase());
-        return existing || { id: generateId('dec'), text: clean, createdAt: new Date().toISOString() };
-      }),
+      restrictions: mergeTextList(
+        parsed.restrictions,
+        currentMemory.restrictions,
+        (text) => ({ id: generateId('restr'), text, active: true, createdAt: new Date().toISOString() })
+      ),
+      clientQuestions: mergeTextList(
+        parsed.clientQuestions,
+        currentMemory.clientQuestions,
+        (text) => ({ id: generateId('q'), text, answered: false, createdAt: new Date().toISOString() })
+      ),
+      tasks: mergeTextList(
+        parsed.tasks,
+        currentMemory.tasks,
+        (text, raw: any) => ({
+          id: generateId('task'),
+          text,
+          status: normalizeTaskStatus(raw?.status),
+          createdAt: new Date().toISOString(),
+        })
+      ),
+      decisions: mergeTextList(
+        parsed.decisions,
+        currentMemory.decisions,
+        (text) => ({ id: generateId('dec'), text, createdAt: new Date().toISOString() })
+      ),
       lastSyncedAt: new Date().toISOString(),
     };
   } catch (error) {
@@ -139,13 +137,111 @@ ${sanitizedNotesBlocks}
   }
 }
 
+function normalizeTaskStatus(status: unknown): 'pending' | 'in_progress' | 'done' {
+  if (status === 'done' || status === 'in_progress' || status === 'pending') return status;
+  return 'pending';
+}
+
+/**
+ * Extracts the text of a single model-returned memory item. The model is asked
+ * to return plain strings, but LLMs frequently return `{ text: "..." }` objects
+ * instead (or other shapes) — treating that case as "empty" would silently wipe
+ * whatever list this item belongs to. Also carries the raw item through so
+ * callers that need other fields (e.g. a task's status) can read them.
+ */
+function extractItemText(raw: unknown): string {
+  if (typeof raw === 'string') return raw;
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    if (typeof obj.text === 'string') return obj.text;
+    if (typeof obj.title === 'string') return obj.title;
+    if (typeof obj.content === 'string') return obj.content;
+  }
+  return '';
+}
+
+/**
+ * Merges the model's fresh list of memory items with what's already stored.
+ *
+ * The model is only shown the current notes plus a short summary of existing
+ * memory, so anything it fails to restate in its response (manually added
+ * entries the notes don't mention, items outside what it chose to summarize,
+ * etc.) would otherwise be deleted on every sync — each sync call replaced the
+ * whole list with exactly what came back. Instead we start from the model's
+ * list (deduped against existing items so ids/flags like `active`/`answered`
+ * are preserved) and then keep any existing item the model didn't mention, so
+ * memory only grows or gets explicitly edited, never silently shrinks.
+ */
+function mergeTextList<T extends { id: string; text: string }>(
+  parsedItems: unknown,
+  existingItems: T[],
+  createNew: (text: string, raw: unknown) => T
+): T[] {
+  const rawList = Array.isArray(parsedItems) ? parsedItems : [];
+  const result: T[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of rawList) {
+    const clean = sanitizeText(extractItemText(raw), 300);
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const existing = existingItems.find((item) => item.text.toLowerCase() === key);
+    result.push(existing || createNew(clean, raw));
+  }
+
+  for (const item of existingItems) {
+    const key = item.text.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(item);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Drops heuristically-derived memory items (ones tagged with the noteId they
+ * were scraped from) once their source line is gone — the note was deleted,
+ * or its content/checklist was edited so the line no longer appears. Manually
+ * added items (no noteId) are never touched. Without this, every sync only
+ * ever appended and the lists grew without bound as notes were edited.
+ */
+function pruneStaleHeuristicItems<T extends { text: string; noteId?: string }>(
+  items: T[],
+  notes: NoteItem[],
+  stillPresent: (note: NoteItem, item: T) => boolean
+): T[] {
+  return items.filter((item) => {
+    if (!item.noteId) return true; // manually added, never auto-pruned
+    const note = notes.find((n) => n.id === item.noteId);
+    if (!note) return false; // source note was deleted
+    return stillPresent(note, item);
+  });
+}
+
 /**
  * Fallback heuristic memory sync when API key is not yet configured
  */
 function runLocalHeuristicMemorySync(notes: NoteItem[], currentMemory: AiMemoryState): AiMemoryState {
-  const allTasks = [...currentMemory.tasks];
-  const allQuestions = [...currentMemory.clientQuestions];
-  const allRestrictions = [...currentMemory.restrictions];
+  const allTasks = pruneStaleHeuristicItems(
+    currentMemory.tasks,
+    notes,
+    (note, task) => note.checklists.some((c) => c.text.toLowerCase() === task.text.toLowerCase())
+  );
+  const allQuestions = pruneStaleHeuristicItems(
+    currentMemory.clientQuestions,
+    notes,
+    (note, q) => note.content.toLowerCase().includes(q.text.toLowerCase())
+  );
+  const allRestrictions = pruneStaleHeuristicItems(
+    currentMemory.restrictions,
+    notes,
+    (note, r) => note.content.toLowerCase().includes(r.text.toLowerCase())
+  );
 
   for (const note of notes) {
     // Add checklist items as tasks if not present
@@ -175,6 +271,7 @@ function runLocalHeuristicMemorySync(notes: NoteItem[], currentMemory: AiMemoryS
             id: generateId('restr'),
             text: clean,
             active: true,
+            noteId: note.id,
             createdAt: new Date().toISOString(),
           });
         }
@@ -184,6 +281,7 @@ function runLocalHeuristicMemorySync(notes: NoteItem[], currentMemory: AiMemoryS
             id: generateId('q'),
             text: clean,
             answered: false,
+            noteId: note.id,
             createdAt: new Date().toISOString(),
           });
         }
@@ -210,13 +308,26 @@ export async function askProjectAssistant(
   apiKey?: string,
   model: string = DEFAULT_MODEL
 ): Promise<string> {
-  const lastUserMsg = messages[messages.length - 1]?.content || '';
+  // The client must never be able to inject its own "system" role message —
+  // that would let it override contextPrompt's safety rules outright. Only
+  // user/assistant turns from the client are trusted to pass through.
+  const clientTurns = (Array.isArray(messages) ? messages : []).filter(
+    (m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string'
+  );
 
-  // Prompt Injection Detection
-  const injectionCheck = analyzePromptInjection(lastUserMsg);
-  if (injectionCheck.isSuspicious) {
-    return `⚠️ Запрос заблокирован системой безопасности NoteHub: обнаружена потенциальная попытка внедрения промпт-инъекции или обхода ограничений модели. Я продолжаю работать строго в рамках памяти проекта "${board.title}".`;
+  const recentTurns = clientTurns.slice(-10);
+
+  // Prompt Injection Detection: scan every recent user turn, not just the last one,
+  // since an injection payload could be planted a few messages back in the history.
+  for (const turn of recentTurns) {
+    if (turn.role !== 'user') continue;
+    const injectionCheck = analyzePromptInjection(turn.content);
+    if (injectionCheck.isSuspicious) {
+      return `⚠️ Запрос заблокирован системой безопасности NoteHub: обнаружена потенциальная попытка внедрения промпт-инъекции или обхода ограничений модели. Я продолжаю работать строго в рамках памяти проекта "${board.title}".`;
+    }
   }
+
+  const lastUserMsg = [...recentTurns].reverse().find((m) => m.role === 'user')?.content || '';
 
   const client = getPolzaClient(apiKey);
 
@@ -249,11 +360,11 @@ ${board.aiMemory.tasks.map((t) => `- [${t.status === 'done' ? 'ГОТОВО' : '
 2. Особо помни ограничения "что НЕ делать", предупреждай о них, если пользователь предлагает действия, нарушающие табу.`;
 
   if (!client) {
-    return `[Демо-режим без Polza API ключа]\n\nЯ проанализировал память стола "${board.title}".\n• Заметок: ${board.notes.length}\n• Задач в работе: ${board.aiMemory.tasks.filter((t) => t.status !== 'done').length}\n• Ограничений (что НЕ делать): ${board.aiMemory.restrictions.filter((r) => r.active).length}\n• Вопросов к клиенту: ${board.aiMemory.clientQuestions.filter((q) => !q.answered).length}\n\nВаш вопрос: "${sanitizeText(lastUserMsg, 200)}".\n\nЧтобы общаться с живой нейросетью (GPT-4o, Claude 3.5, Gemini), укажите ваш API-ключ в настройках Polza.ai в панели ИИ-памяти!`;
+    return `[Демо-режим без Polza API ключа]\n\nЯ проанализировал память стола "${board.title}".\n• Заметок: ${board.notes.length}\n• Задач в работе: ${board.aiMemory.tasks.filter((t) => t.status !== 'done').length}\n• Ограничений (что НЕ делать): ${board.aiMemory.restrictions.filter((r) => r.active).length}\n• Вопросов к клиенту: ${board.aiMemory.clientQuestions.filter((q) => !q.answered).length}\n\nВаш вопрос: "${sanitizeText(lastUserMsg, 200)}".\n\nЧтобы общаться с живой нейросетью (GPT-4o, Claude 3.5, Gemini), администратору нужно задать переменную окружения POLZA_AI_API_KEY на сервере.`;
   }
 
   try {
-    const sanitizedMessages = messages.slice(-10).map((m) => ({
+    const sanitizedMessages = recentTurns.map((m) => ({
       role: m.role,
       content: sanitizeText(m.content, 2000),
     }));

@@ -54,15 +54,18 @@ export function useCurrentUser() {
       setUserState(custom.detail);
     };
 
-    window.addEventListener(EVENT_NAME, handleUserChanged);
-    window.addEventListener('storage', (e) => {
+    const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY) {
         setUserState(getStoredUser());
       }
-    });
+    };
+
+    window.addEventListener(EVENT_NAME, handleUserChanged);
+    window.addEventListener('storage', handleStorage);
 
     return () => {
       window.removeEventListener(EVENT_NAME, handleUserChanged);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 

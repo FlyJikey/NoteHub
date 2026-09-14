@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { Board, NoteItem, DrawingPath, AiMemoryState, Role, UserProfile } from '@/types';
 import { generateId } from './utils';
-import { normalizeNickname, isValidNickname, isValidPin, hashPin } from './security';
+import { normalizeNickname, isValidNickname, isValidPin, hashPin, generateSecureToken } from './security';
 
 // GitHub Contents API storage adapter
 interface GitHubConfig {
@@ -56,8 +56,37 @@ async function fetchFromGitHub(fileName: string): Promise<string | null> {
   }
 }
 
-async function saveToGitHub(fileName: string, contentStr: string, commitMsg: string): Promise<boolean> {
+async function putToGitHub(
+  fileName: string,
+  contentStr: string,
+  commitMsg: string,
+  currentSha: string | undefined
+): Promise<Response> {
   const { token, repo, branch } = getGitHubConfig();
+  const url = `https://api.github.com/repos/${repo}/contents/.data/${fileName}`;
+  const payload: any = {
+    message: commitMsg,
+    content: Buffer.from(contentStr, 'utf-8').toString('base64'),
+    branch,
+  };
+  if (currentSha) {
+    payload.sha = currentSha;
+  }
+
+  return fetch(url, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github.v3+json',
+      'User-Agent': 'NoteHub-App',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function saveToGitHub(fileName: string, contentStr: string, commitMsg: string): Promise<boolean> {
+  const { token, repo } = getGitHubConfig();
   if (!token || !repo) return false;
 
   try {
@@ -67,26 +96,16 @@ async function saveToGitHub(fileName: string, contentStr: string, commitMsg: str
       currentSha = shaCache[fileName];
     }
 
-    const url = `https://api.github.com/repos/${repo}/contents/.data/${fileName}`;
-    const payload: any = {
-      message: commitMsg,
-      content: Buffer.from(contentStr, 'utf-8').toString('base64'),
-      branch,
-    };
-    if (currentSha) {
-      payload.sha = currentSha;
-    }
+    let res = await putToGitHub(fileName, contentStr, commitMsg, currentSha);
 
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github.v3+json',
-        'User-Agent': 'NoteHub-App',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    // 409 means our cached sha is stale (someone else wrote to the file since we
+    // last fetched it). Refetch the current sha once and retry, instead of
+    // silently dropping the write.
+    if (res.status === 409) {
+      delete shaCache[fileName];
+      await fetchFromGitHub(fileName);
+      res = await putToGitHub(fileName, contentStr, commitMsg, shaCache[fileName]);
+    }
 
     if (!res.ok) {
       const errText = await res.text();
@@ -214,10 +233,19 @@ function writeLocalFile(fileName: string, content: string): void {
 }
 
 function getInitialDemoBoard(): Board {
+  // IDs below are fixed (not generateId()) on purpose: when no persistent storage
+  // is configured, every serverless instance independently falls back to this demo
+  // board. Random IDs would make each instance produce a different board, so a
+  // shareable link (or a note/drawing reference) minted on one instance would not
+  // resolve on another. Fixed IDs keep every instance's fallback content identical.
   const boardId = 'demo-project';
-  const note1Id = generateId('note');
-  const note2Id = generateId('note');
-  const note3Id = generateId('note');
+  const note1Id = 'demo-note-1';
+  const note2Id = 'demo-note-2';
+  const note3Id = 'demo-note-3';
+  // Fixed (not new Date()) for the same reason as the IDs above: every field of
+  // this fallback board must be deterministic so independent instances produce
+  // byte-identical content.
+  const DEMO_TIMESTAMP = '2024-01-01T00:00:00.000Z';
 
   return {
     id: boardId,
@@ -225,8 +253,8 @@ function getInitialDemoBoard(): Board {
     description: 'Интерактивный стол с заметками, задачами, ограничениями и памятью ИИ',
     shareToken: 'share-demo-12345',
     defaultRole: 'editor',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: DEMO_TIMESTAMP,
+    updatedAt: DEMO_TIMESTAMP,
     notes: [
       {
         id: note1Id,
@@ -246,8 +274,8 @@ function getInitialDemoBoard(): Board {
         ],
         images: [],
         pinned: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: DEMO_TIMESTAMP,
+        updatedAt: DEMO_TIMESTAMP,
       },
       {
         id: note2Id,
@@ -266,8 +294,8 @@ function getInitialDemoBoard(): Board {
         ],
         images: [],
         pinned: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: DEMO_TIMESTAMP,
+        updatedAt: DEMO_TIMESTAMP,
       },
       {
         id: note3Id,
@@ -286,13 +314,13 @@ function getInitialDemoBoard(): Board {
         ],
         images: [],
         pinned: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: DEMO_TIMESTAMP,
+        updatedAt: DEMO_TIMESTAMP,
       },
     ],
     drawings: [
       {
-        id: generateId('draw'),
+        id: 'demo-draw-1',
         boardId,
         type: 'arrow',
         points: [
@@ -304,10 +332,10 @@ function getInitialDemoBoard(): Board {
         fromNoteId: note1Id,
         toNoteId: note2Id,
         label: 'влияет на',
-        createdAt: new Date().toISOString(),
+        createdAt: DEMO_TIMESTAMP,
       },
       {
-        id: generateId('draw'),
+        id: 'demo-draw-2',
         boardId,
         type: 'arrow',
         points: [
@@ -319,84 +347,84 @@ function getInitialDemoBoard(): Board {
         fromNoteId: note1Id,
         toNoteId: note3Id,
         label: 'порождает вопросы',
-        createdAt: new Date().toISOString(),
+        createdAt: DEMO_TIMESTAMP,
       },
     ],
     aiMemory: {
       summary: 'Проект NoteHub: совместное пространство с холстом, связями и ИИ-секретарем на базе Polza.ai.',
       restrictions: [
         {
-          id: generateId('restr'),
+          id: 'demo-restr-1',
           text: 'Не ломать функционал и дизайн сайта',
           active: true,
-          createdAt: new Date().toISOString(),
+          createdAt: DEMO_TIMESTAMP,
         },
         {
-          id: generateId('restr'),
+          id: 'demo-restr-2',
           text: 'Не запускать dev-сервер без явного запроса пользователя',
           active: true,
-          createdAt: new Date().toISOString(),
+          createdAt: DEMO_TIMESTAMP,
         },
         {
-          id: generateId('restr'),
+          id: 'demo-restr-3',
           text: 'Не использовать переусложненные фреймворки канваса, отдавать приоритет стабильности',
           active: true,
-          createdAt: new Date().toISOString(),
+          createdAt: DEMO_TIMESTAMP,
         },
       ],
       clientQuestions: [
         {
-          id: generateId('q'),
+          id: 'demo-q-1',
           text: 'Уточнить у заказчика формат доступа к Polza.ai (какие модели разрешены)',
           answered: false,
-          createdAt: new Date().toISOString(),
+          createdAt: DEMO_TIMESTAMP,
         },
         {
-          id: generateId('q'),
+          id: 'demo-q-2',
           text: 'Будет ли Telegram-бот общим или личным для каждого стола?',
           answered: false,
-          createdAt: new Date().toISOString(),
+          createdAt: DEMO_TIMESTAMP,
         },
       ],
       tasks: [
         {
-          id: generateId('task'),
+          id: 'demo-task-1',
           text: 'Реализовать бесконечный холст с перемещением и масштабированием',
           status: 'done',
-          createdAt: new Date().toISOString(),
+          createdAt: DEMO_TIMESTAMP,
         },
         {
-          id: generateId('task'),
+          id: 'demo-task-2',
           text: 'Добавить создание и редактирование карточек с открытием в полный документ',
           status: 'done',
-          createdAt: new Date().toISOString(),
+          createdAt: DEMO_TIMESTAMP,
         },
         {
-          id: generateId('task'),
+          id: 'demo-task-3',
           text: 'Интегрировать Polza.ai для сканирования заметок и авто-наполнения памяти',
           status: 'pending',
-          createdAt: new Date().toISOString(),
+          createdAt: DEMO_TIMESTAMP,
         },
         {
-          id: generateId('task'),
+          id: 'demo-task-4',
           text: 'Сделать шеринг стола по ссылке с выбором роли (редактор / читатель)',
           status: 'pending',
-          createdAt: new Date().toISOString(),
+          createdAt: DEMO_TIMESTAMP,
         },
       ],
       decisions: [
         {
-          id: generateId('dec'),
+          id: 'demo-dec-1',
           text: 'Используем Polza.ai как единый LLM-провайдер с OpenAI SDK',
-          createdAt: new Date().toISOString(),
+          createdAt: DEMO_TIMESTAMP,
         },
         {
-          id: generateId('dec'),
+          id: 'demo-dec-2',
           text: 'Карточки на столе могут открываться в полноценный полноразмерный документ',
-          createdAt: new Date().toISOString(),
+          createdAt: DEMO_TIMESTAMP,
         },
       ],
-      lastSyncedAt: new Date().toISOString(),
+      lastSyncedAt: DEMO_TIMESTAMP,
     },
     telegramConfig: {
       connected: false,
@@ -491,15 +519,19 @@ export async function saveBoard(board: Board): Promise<Board> {
   const jsonStr = JSON.stringify(boards, null, 2);
   writeLocalFile('boards.json', jsonStr);
 
-  // Sync to Vercel KV if configured
-  saveToKV('boards', jsonStr).catch((err) => {
-    console.error('Error saving board to KV:', err);
-  });
-
-  // Sync to GitHub if configured
-  saveToGitHub('boards.json', jsonStr, `Update board: ${board.title || board.id}`).catch((err) => {
-    console.error('Error saving board to GitHub:', err);
-  });
+  // Awaited (not fire-and-forget): a serverless instance can be frozen the
+  // moment the response is sent, so an unawaited write here would silently
+  // never complete and the data would be lost.
+  await Promise.all([
+    saveToKV('boards', jsonStr).catch((err) => {
+      console.error('Error saving board to KV:', err);
+      return false;
+    }),
+    saveToGitHub('boards.json', jsonStr, `Update board: ${board.title || board.id}`).catch((err) => {
+      console.error('Error saving board to GitHub:', err);
+      return false;
+    }),
+  ]);
 
   return board;
 }
@@ -510,11 +542,12 @@ export async function createBoard(
   creatorNickname?: string
 ): Promise<Board> {
   const cleanCreator = creatorNickname ? normalizeNickname(creatorNickname) : undefined;
+  const cleanTitle = typeof title === 'string' ? title.trim() : '';
   const newBoard: Board = {
     id: generateId('board'),
-    title: title.trim() || 'Новый стол заметок',
-    description: description || '',
-    shareToken: generateId('share'),
+    title: cleanTitle || 'Новый стол заметок',
+    description: typeof description === 'string' ? description : '',
+    shareToken: generateSecureToken('share'),
     defaultRole: 'editor',
     createdBy: cleanCreator,
     members: cleanCreator ? [cleanCreator] : [],
@@ -532,7 +565,7 @@ export async function createBoard(
     },
     telegramConfig: {
       connected: false,
-      inviteCode: generateId('tg'),
+      inviteCode: generateSecureToken('tg'),
     },
   };
 
@@ -547,12 +580,16 @@ export async function deleteBoard(id: string): Promise<boolean> {
     lastBoardsFetchTime = Date.now();
     const jsonStr = JSON.stringify(filtered, null, 2);
     writeLocalFile('boards.json', jsonStr);
-    saveToKV('boards', jsonStr).catch((err) => {
-      console.error('Error deleting board from KV:', err);
-    });
-    saveToGitHub('boards.json', jsonStr, `Delete board: ${id}`).catch((err) => {
-      console.error('Error deleting board on GitHub:', err);
-    });
+    await Promise.all([
+      saveToKV('boards', jsonStr).catch((err) => {
+        console.error('Error deleting board from KV:', err);
+        return false;
+      }),
+      saveToGitHub('boards.json', jsonStr, `Delete board: ${id}`).catch((err) => {
+        console.error('Error deleting board on GitHub:', err);
+        return false;
+      }),
+    ]);
     return true;
   }
   return false;
@@ -659,13 +696,16 @@ export async function saveUser(user: UserProfile): Promise<UserProfile> {
   const jsonStr = JSON.stringify(users, null, 2);
   writeLocalFile('users.json', jsonStr);
 
-  saveToKV('users', jsonStr).catch((err) => {
-    console.error('Error saving user to KV:', err);
-  });
-
-  saveToGitHub('users.json', jsonStr, `Update user: ${clean}`).catch((err) => {
-    console.error('Error saving user to GitHub:', err);
-  });
+  await Promise.all([
+    saveToKV('users', jsonStr).catch((err) => {
+      console.error('Error saving user to KV:', err);
+      return false;
+    }),
+    saveToGitHub('users.json', jsonStr, `Update user: ${clean}`).catch((err) => {
+      console.error('Error saving user to GitHub:', err);
+      return false;
+    }),
+  ]);
 
   return user;
 }

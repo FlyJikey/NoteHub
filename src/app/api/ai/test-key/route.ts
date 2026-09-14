@@ -40,10 +40,10 @@ export async function POST(req: Request) {
       modelsCount,
       message: 'API-ключ Polza.ai успешно проверен и активен!',
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error('Error testing Polza key:', err);
     return NextResponse.json(
-      { valid: false, error: `Сетевая ошибка: ${err.message}` },
+      { valid: false, error: 'Сетевая ошибка при проверке ключа. Попробуйте позже.' },
       { status: 500 }
     );
   }

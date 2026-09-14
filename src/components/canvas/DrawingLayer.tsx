@@ -26,7 +26,7 @@ export const DrawingLayer: React.FC<DrawingLayerProps> = ({
     if (!note) return null;
     return {
       x: note.x + (note.width || 320) / 2,
-      y: note.y + 120,
+      y: note.y + (note.height || 240) / 2,
     };
   };
 

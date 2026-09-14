@@ -63,14 +63,14 @@ export default function HomePage() {
     }
   };
 
-  const handleDeleteBoard = async (e: React.MouseEvent, id: string) => {
+  const handleDeleteBoard = async (e: React.MouseEvent, board: Board) => {
     e.preventDefault();
     e.stopPropagation();
     if (!confirm('Вы уверены, что хотите удалить этот стол?')) return;
 
     try {
-      await fetch(`/api/boards/${id}`, { method: 'DELETE' });
-      setBoards((prev) => prev.filter((b) => b.id !== id));
+      await fetch(`/api/boards/${board.id}?token=${encodeURIComponent(board.shareToken)}`, { method: 'DELETE' });
+      setBoards((prev) => prev.filter((b) => b.id !== board.id));
     } catch (err) {
       console.error('Failed to delete board:', err);
     }
@@ -214,7 +214,7 @@ export default function HomePage() {
                         {b.title}
                       </h3>
                       <button
-                        onClick={(e) => handleDeleteBoard(e, b.id)}
+                        onClick={(e) => handleDeleteBoard(e, b)}
                         className="p-1.5 text-neutral-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                         title="Удалить доску"
                       >

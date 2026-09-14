@@ -24,6 +24,7 @@ const PROMPT_INJECTION_PATTERNS = [
 ];
 
 import crypto from 'crypto';
+import { NextResponse } from 'next/server';
 
 /**
  * Normalizes nickname to clean lowercase string
@@ -54,6 +55,16 @@ export function isValidPin(pin: string): boolean {
  */
 export function hashPin(pin: string): string {
   return crypto.createHash('sha256').update(pin.trim() + '_notehub_salt').digest('hex');
+}
+
+/**
+ * Generates a cryptographically secure random token for share links / invite codes.
+ * Uses crypto.randomBytes rather than Math.random(), which is predictable and
+ * unsuitable for anything used as a security credential.
+ */
+export function generateSecureToken(prefix: string = ''): string {
+  const raw = crypto.randomBytes(24).toString('base64url');
+  return prefix ? `${prefix}_${raw}` : raw;
 }
 
 /**
@@ -115,27 +126,70 @@ export function analyzePromptInjection(text: string): { isSuspicious: boolean; r
  */
 export function wrapUntrustedContext(text: string, label: string = 'untrusted_content'): string {
   const sanitized = sanitizeText(text);
-  // Neutralize closing tags inside content to avoid delimiter injection
-  const escaped = sanitized.replace(new RegExp(`</${label}>`, 'gi'), `[escaped_tag]`);
+  // Neutralize both the opening and closing delimiter tags inside content so
+  // untrusted text can't forge a fake boundary and "escape" the wrapper. Plain
+  // split/join (not RegExp) avoids treating `label` as a regex pattern — a
+  // label containing regex metacharacters would otherwise change what gets matched.
+  const escaped = sanitized
+    .split(`<${label}>`).join('[escaped_tag]')
+    .split(`</${label}>`).join('[escaped_tag]');
   return `<${label}>\n${escaped}\n</${label}>`;
 }
 
 /**
  * Allowed safe image MIME types and extensions for file uploads
  */
+// SVG is intentionally excluded: it can embed <script> and event-handler
+// attributes, giving stored XSS when served back from the same origin.
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
   'image/gif',
-  'image/svg+xml',
 ]);
 
-const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg']);
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
+
+// Magic-byte signatures so an uploader can't just relabel a file's declared
+// MIME type/extension to smuggle a different (possibly unsafe) format through.
+const MAGIC_BYTES: Array<{ mime: string; check: (buf: Buffer) => boolean }> = [
+  { mime: 'image/jpeg', check: (b) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+  {
+    mime: 'image/png',
+    check: (b) =>
+      b.length > 8 &&
+      b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 &&
+      b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a,
+  },
+  {
+    mime: 'image/gif',
+    check: (b) => b.length > 5 && (b.toString('ascii', 0, 6) === 'GIF87a' || b.toString('ascii', 0, 6) === 'GIF89a'),
+  },
+  {
+    mime: 'image/webp',
+    check: (b) => b.length > 11 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP',
+  },
+];
+
+export function matchesImageMagicBytes(mimeType: string, buffer: Buffer): boolean {
+  const signature = MAGIC_BYTES.find((m) => m.mime === mimeType);
+  if (!signature) return false;
+  return signature.check(buffer);
+}
 
 export function isAllowedUploadType(mimeType: string, extension: string): boolean {
   const cleanExt = extension.toLowerCase();
   return ALLOWED_MIME_TYPES.has(mimeType) && ALLOWED_EXTENSIONS.has(cleanExt);
+}
+
+/**
+ * Logs the real error server-side but returns a generic message to the client.
+ * Internal error messages (stack traces, file paths, provider errors) must never
+ * leak to callers — they can reveal implementation details useful for attacks.
+ */
+export function safeErrorResponse(err: unknown, context: string, status: number = 500) {
+  console.error(context, err);
+  return NextResponse.json({ error: 'Внутренняя ошибка сервера. Попробуйте позже.' }, { status });
 }
 
 /**
@@ -149,6 +203,20 @@ interface RateLimitEntry {
 
 const rateLimitStore = new Map<string, RateLimitEntry>();
 
+// Entries are only ever added by checkRateLimit, never removed on their own,
+// so a long-lived warm serverless instance would otherwise accumulate one
+// entry per distinct identifier/action forever. Sweep expired entries out
+// periodically (piggybacking on normal traffic) instead of on a timer, so
+// there's nothing to tear down and no timer keeping the instance alive.
+const RATE_LIMIT_SWEEP_INTERVAL = 500;
+let requestsSinceSweep = 0;
+
+function sweepExpiredRateLimitEntries(now: number): void {
+  for (const [key, entry] of rateLimitStore) {
+    if (now > entry.resetTime) rateLimitStore.delete(key);
+  }
+}
+
 export function checkRateLimit(
   identifier: string,
   action: string,
@@ -157,6 +225,13 @@ export function checkRateLimit(
 ): { allowed: boolean; remaining: number; retryAfterSec?: number } {
   const key = `${action}:${identifier}`;
   const now = Date.now();
+
+  requestsSinceSweep += 1;
+  if (requestsSinceSweep >= RATE_LIMIT_SWEEP_INTERVAL) {
+    requestsSinceSweep = 0;
+    sweepExpiredRateLimitEntries(now);
+  }
+
   const entry = rateLimitStore.get(key);
 
   if (!entry || now > entry.resetTime) {
