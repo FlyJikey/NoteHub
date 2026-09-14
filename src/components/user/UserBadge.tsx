@@ -37,7 +37,7 @@ export const UserBadge: React.FC<UserBadgeProps> = ({ className = '', compact = 
           </div>
 
           {!compact && (
-            <div className="text-left leading-tight pr-1">
+            <div className="hidden sm:block text-left leading-tight pr-1">
               <span className="block text-xs font-bold text-neutral-900 dark:text-neutral-100 max-w-[90px] truncate">
                 {user.displayName || user.nickname}
               </span>

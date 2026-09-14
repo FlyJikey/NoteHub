@@ -80,29 +80,29 @@ export default function HomePage() {
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col">
       {/* Top Navbar */}
       <header className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-amber-500 flex items-center justify-center text-white shadow-md">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-amber-500 flex items-center justify-center text-white shadow-md">
               <LayoutGrid className="w-5 h-5" />
             </div>
-            <div>
-              <span className="font-extrabold text-base tracking-tight block leading-none">
+            <div className="min-w-0">
+              <span className="font-extrabold text-base tracking-tight block leading-none truncate">
                 NoteHub
               </span>
-              <span className="text-[10px] text-neutral-400 font-medium">
+              <span className="hidden sm:block text-[10px] text-neutral-400 font-medium truncate">
                 Canvas + Obsidian + AI Brain
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
             <UserBadge />
             <button
               onClick={() => setIsCreating(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-xs font-bold hover:opacity-90 transition-opacity shadow-sm"
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-xs font-bold hover:opacity-90 transition-opacity shadow-sm whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
-              <span>Создать стол</span>
+              <span className="hidden sm:inline">Создать стол</span>
             </button>
           </div>
         </div>

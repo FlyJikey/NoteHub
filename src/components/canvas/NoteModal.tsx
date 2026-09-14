@@ -143,8 +143,8 @@ export const NoteModal: React.FC<NoteModalProps> = ({
         style={{ borderTop: `6px solid ${color}` }}
       >
         {/* Top Header Bar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 sm:px-6 py-3 sm:py-4 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+          <div className="flex items-center gap-3 min-w-0 overflow-x-auto no-scrollbar">
             <button
               onClick={() => {
                 const newPinned = !pinned;
@@ -152,7 +152,7 @@ export const NoteModal: React.FC<NoteModalProps> = ({
                 handleSave({ pinned: newPinned });
               }}
               title={pinned ? 'Открепить' : 'Закрепить'}
-              className={`p-1.5 rounded-lg transition-colors ${
+              className={`shrink-0 p-1.5 rounded-lg transition-colors ${
                 pinned
                   ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
                   : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800'
@@ -163,7 +163,7 @@ export const NoteModal: React.FC<NoteModalProps> = ({
 
             {/* Color selector */}
             {isEditable && (
-              <div className="flex items-center gap-1.5 pl-2 border-l border-neutral-200 dark:border-neutral-700">
+              <div className="flex items-center gap-1.5 pl-2 border-l border-neutral-200 dark:border-neutral-700 shrink-0">
                 {COLOR_PRESETS.map((c) => (
                   <button
                     key={c.hex}
@@ -172,7 +172,7 @@ export const NoteModal: React.FC<NoteModalProps> = ({
                       handleSave({ color: c.hex });
                     }}
                     title={c.name}
-                    className={`w-5 h-5 rounded-full transition-transform border ${
+                    className={`shrink-0 w-5 h-5 rounded-full transition-transform border ${
                       color === c.hex
                         ? 'scale-125 ring-2 ring-neutral-400 dark:ring-neutral-300 ring-offset-1 dark:ring-offset-neutral-900'
                         : 'opacity-70 hover:opacity-100'
@@ -184,13 +184,13 @@ export const NoteModal: React.FC<NoteModalProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {note.author && (
-              <span className="text-[11px] px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-medium">
+              <span className="hidden sm:inline text-[11px] px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-medium">
                 @{note.author}
               </span>
             )}
-            <span className="text-xs text-neutral-400 flex items-center gap-1">
+            <span className="hidden sm:flex text-xs text-neutral-400 items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />
               {formatDate(note.updatedAt)}
             </span>

@@ -72,37 +72,49 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   return (
     <>
       {/* Top Header Bar: Clean & Minimal */}
-      <header className="fixed top-3 left-3 right-3 z-30 flex items-center justify-between pointer-events-none">
+      <header className="fixed top-3 left-3 right-3 z-30 flex items-center justify-between gap-2 pointer-events-none">
         {/* Left Side: Back & Title */}
-        <div className="flex items-center gap-2 pointer-events-auto bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md px-3.5 py-2 rounded-2xl shadow-lg border border-neutral-200/90 dark:border-neutral-800">
+        <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md px-2.5 sm:px-3.5 py-2 rounded-2xl shadow-lg border border-neutral-200/90 dark:border-neutral-800 min-w-0">
           <Link
             href="/"
             title="Все столы"
-            className="p-1.5 text-neutral-600 hover:text-neutral-950 dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors"
+            className="shrink-0 p-1.5 text-neutral-600 hover:text-neutral-950 dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </Link>
-          <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-700" />
-          <h1 className="font-bold text-sm text-neutral-900 dark:text-neutral-50 max-w-[200px] sm:max-w-[320px] truncate">
+          <div className="shrink-0 h-4 w-px bg-neutral-200 dark:bg-neutral-700" />
+          <h1 className="font-bold text-sm text-neutral-900 dark:text-neutral-50 max-w-[80px] sm:max-w-[320px] truncate">
             {boardTitle}
           </h1>
-          <div className="flex items-center gap-1 text-[11px] text-neutral-500 dark:text-neutral-400 pl-1">
+          <div className="shrink-0 flex items-center gap-1 text-[11px] text-neutral-500 dark:text-neutral-400 pl-1">
             {isSaving ? (
-              <span className="animate-pulse text-amber-500 font-medium">Сохранение...</span>
+              <>
+                <span className="hidden sm:inline animate-pulse text-amber-500 font-medium">Сохранение...</span>
+                <span
+                  className="sm:hidden w-2 h-2 rounded-full bg-amber-500 animate-pulse"
+                  title="Сохранение..."
+                />
+              </>
             ) : (
-              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Сохранено
-              </span>
+              <>
+                <span className="hidden sm:flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Сохранено
+                </span>
+                <CheckCircle2
+                  className="sm:hidden w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                  aria-label="Сохранено"
+                />
+              </>
             )}
           </div>
         </div>
 
         {/* Right Side: Telegram, Share, User, and AI Memory Drawer Toggle */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto max-w-[60vw] sm:max-w-none overflow-x-auto no-scrollbar">
           {/* Members list if any */}
           {members && members.length > 0 && (
-            <div className="hidden lg:flex items-center -space-x-1.5 px-1 py-1 rounded-xl bg-white/80 dark:bg-neutral-900/80 border border-neutral-200/80 dark:border-neutral-800 shadow-sm">
+            <div className="hidden lg:flex shrink-0 items-center -space-x-1.5 px-1 py-1 rounded-xl bg-white/80 dark:bg-neutral-900/80 border border-neutral-200/80 dark:border-neutral-800 shadow-sm">
               {members.slice(0, 3).map((m) => (
                 <div
                   key={m}
@@ -121,12 +133,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           )}
 
           {/* User profile / nickname badge */}
-          <UserBadge compact={false} />
+          <div className="shrink-0">
+            <UserBadge compact={false} />
+          </div>
 
           {/* Telegram bridge button */}
           <button
             onClick={onOpenTelegramModal}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md rounded-2xl shadow-lg border border-neutral-200/90 dark:border-neutral-800 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors"
+            className="shrink-0 flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md rounded-2xl shadow-lg border border-neutral-200/90 dark:border-neutral-800 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors"
             title="Интеграция с Telegram"
           >
             <Send className="w-3.5 h-3.5" />
@@ -136,7 +150,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           {/* Share Button */}
           <button
             onClick={onOpenShareModal}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md rounded-2xl shadow-lg border border-neutral-200/90 dark:border-neutral-800 text-xs font-semibold text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="shrink-0 flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md rounded-2xl shadow-lg border border-neutral-200/90 dark:border-neutral-800 text-xs font-semibold text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           >
             <Share2 className="w-3.5 h-3.5 text-indigo-500" />
             <span className="hidden sm:inline">Поделиться</span>
@@ -145,16 +159,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           {/* AI Memory Button */}
           <button
             onClick={onToggleAiMemory}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl shadow-lg border text-xs font-bold transition-all ${
+            className={`shrink-0 flex items-center gap-2 p-2 sm:px-3.5 sm:py-2 rounded-2xl shadow-lg border text-xs font-bold transition-all ${
               isAiDrawerOpen
                 ? 'bg-indigo-600 text-white border-indigo-700 ring-2 ring-indigo-300 dark:ring-indigo-800'
                 : 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 border-neutral-900 dark:border-neutral-100 hover:opacity-95'
             }`}
+            title="ИИ-Память проекта"
           >
             <Brain className="w-4 h-4 text-amber-300 dark:text-amber-500" />
-            <span>ИИ-Память</span>
+            <span className="hidden sm:inline">ИИ-Память</span>
             {(activeTasksCount > 0 || restrictionsCount > 0) && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 dark:bg-black/20 font-bold">
+              <span className="hidden sm:inline px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 dark:bg-black/20 font-bold">
                 {activeTasksCount} зад.
               </span>
             )}
@@ -163,13 +178,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </header>
 
       {/* Bottom Floating Canvas Tools: Clean, Functional, Fast */}
-      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-1.5 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md px-3 py-2 rounded-2xl shadow-2xl border border-neutral-200/90 dark:border-neutral-800">
+      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 pointer-events-auto max-w-[calc(100vw-1.5rem)] overflow-x-auto no-scrollbar flex items-center gap-1.5 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md px-3 py-2 rounded-2xl shadow-2xl border border-neutral-200/90 dark:border-neutral-800">
         {/* Undo / Redo */}
         <button
           onClick={onUndo}
           disabled={!canUndo || !isEditable}
           title="Шаг назад (Ctrl+Z / Cmd+Z)"
-          className="p-2 rounded-xl text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+          className="shrink-0 p-2 rounded-xl text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
         >
           <Undo2 className="w-4 h-4" />
         </button>
@@ -178,18 +193,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           onClick={onRedo}
           disabled={!canRedo || !isEditable}
           title="Шаг вперед (Ctrl+Shift+Z / Cmd+Shift+Z)"
-          className="p-2 rounded-xl text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+          className="shrink-0 p-2 rounded-xl text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
         >
           <Redo2 className="w-4 h-4" />
         </button>
 
-        <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
+        <div className="shrink-0 h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
 
         {/* Tool Selectors */}
         <button
           onClick={() => setActiveTool('hand')}
           title="Рука / Перемещение холста (H или Пробел)"
-          className={`p-2 rounded-xl transition-colors ${
+          className={`shrink-0 p-2 rounded-xl transition-colors ${
             activeTool === 'hand'
               ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
               : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
@@ -201,7 +216,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <button
           onClick={() => setActiveTool('select')}
           title="Выбор и перемещение (V)"
-          className={`p-2 rounded-xl transition-colors ${
+          className={`shrink-0 p-2 rounded-xl transition-colors ${
             activeTool === 'select'
               ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
               : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
@@ -212,16 +227,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         {isEditable && (
           <>
-            <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
+            <div className="shrink-0 h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
 
             {/* Add Note Button */}
             <button
               onClick={onAddNote}
               title="Создать заметку-стикер (N)"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 text-amber-950 dark:bg-amber-950/80 dark:text-amber-200 font-semibold text-xs hover:bg-amber-200 dark:hover:bg-amber-900 transition-colors"
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 text-amber-950 dark:bg-amber-950/80 dark:text-amber-200 font-semibold text-xs hover:bg-amber-200 dark:hover:bg-amber-900 transition-colors"
             >
               <Plus className="w-4 h-4" />
-              <span>Заметка</span>
+              <span className="hidden sm:inline">Заметка</span>
             </button>
 
             {/* Filter My Notes Toggle */}
@@ -233,7 +248,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     ? 'Фильтр активен: подсвечиваются только ваши заметки (клик для сброса)'
                     : `Подсветить только мои заметки (${myNotesCount})`
                 }
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                   filterMyNotes
                     ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300 dark:ring-indigo-800'
                     : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
@@ -259,7 +274,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <button
               onClick={() => setActiveTool(activeTool === 'freehand' ? 'select' : 'freehand')}
               title="Карандаш для рисования (P)"
-              className={`p-2 rounded-xl transition-colors ${
+              className={`shrink-0 p-2 rounded-xl transition-colors ${
                 activeTool === 'freehand'
                   ? 'bg-indigo-600 text-white'
                   : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
@@ -272,7 +287,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <button
               onClick={() => setActiveTool(activeTool === 'arrow' ? 'select' : 'arrow')}
               title="Стрелка связи между карточками (A)"
-              className={`p-2 rounded-xl transition-colors ${
+              className={`shrink-0 p-2 rounded-xl transition-colors ${
                 activeTool === 'arrow'
                   ? 'bg-indigo-600 text-white'
                   : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
@@ -285,7 +300,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <button
               onClick={() => setActiveTool(activeTool === 'eraser' ? 'select' : 'eraser')}
               title="Ластик — кликните по линии или стрелке, чтобы стереть (E)"
-              className={`p-2 rounded-xl transition-colors ${
+              className={`shrink-0 p-2 rounded-xl transition-colors ${
                 activeTool === 'eraser'
                   ? 'bg-rose-600 text-white'
                   : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
@@ -299,7 +314,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <button
                 onClick={onClearAllDrawings}
                 title="Очистить все линии и стрелки со стола"
-                className="px-2 py-1 text-[11px] font-medium text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
+                className="shrink-0 hidden sm:inline-block px-2 py-1 text-[11px] font-medium text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
               >
                 Очистить линии
               </button>
@@ -307,10 +322,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </>
         )}
 
-        <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
+        <div className="shrink-0 h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
 
         {/* Zoom Controls */}
-        <div className="flex items-center gap-0.5">
+        <div className="shrink-0 flex items-center gap-0.5">
           <button
             onClick={onZoomOut}
             title="Уменьшить"

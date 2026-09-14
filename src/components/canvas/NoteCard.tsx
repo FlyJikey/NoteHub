@@ -16,7 +16,7 @@ interface NoteCardProps {
   isMyNote?: boolean;
   onSelect: () => void;
   onOpenModal: () => void;
-  onStartDrag: (e: React.MouseEvent, noteId: string) => void;
+  onStartDrag: (e: React.PointerEvent, noteId: string) => void;
   onDelete: (noteId: string) => void;
 }
 
@@ -37,7 +37,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({
   return (
     <div
       onClick={onSelect}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         if (isEditable) {
           onStartDrag(e, note.id);
         }
@@ -45,6 +45,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({
       style={{
         transform: `translate(${note.x}px, ${note.y}px)`,
         width: `${note.width || 320}px`,
+        touchAction: 'none',
       }}
       className={`absolute select-none cursor-grab active:cursor-grabbing rounded-2xl shadow-md transition-all duration-200 group overflow-hidden bg-white dark:bg-neutral-900 border ${
         isDimmed
@@ -72,7 +73,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({
           <h3 className="font-bold text-base text-neutral-900 dark:text-neutral-50 leading-snug line-clamp-2 tracking-tight">
             {note.title || 'Без названия'}
           </h3>
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
             <button
               onClick={(e) => {
                 e.stopPropagation();

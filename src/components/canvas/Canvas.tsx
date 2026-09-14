@@ -72,6 +72,17 @@ export const Canvas: React.FC<CanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Active touch/pen/mouse contacts, keyed by pointerId — lets us tell a
+  // single-finger pan/draw gesture apart from a two-finger pinch without
+  // separate touch-event plumbing (Pointer Events unify mouse & touch).
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<{
+    startDistance: number;
+    startScale: number;
+    startPan: { x: number; y: number };
+    startMid: { x: number; y: number };
+  } | null>(null);
+
   // Ids removed locally since the last save. Sent alongside every save so the
   // server can tell "I deleted this" apart from "my local copy doesn't know
   // about this yet" when merging concurrent edits from other collaborators
@@ -288,7 +299,41 @@ export const Canvas: React.FC<CanvasProps> = ({
     };
   };
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const getDistance = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+    Math.hypot(a.x - b.x, a.y - b.y);
+
+  const getMidpoint = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+  });
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Ignore right-click / secondary mouse buttons, but allow the middle
+    // button (used for pan-by-scroll-click) and any touch/pen contact.
+    if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
+
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    // A second finger landing mid-gesture always means "start pinch-zoom" —
+    // abort whatever single-pointer interaction (pan/drag/draw) was in
+    // flight so the two gestures never fight over the same state.
+    if (pointersRef.current.size === 2) {
+      setIsPanning(false);
+      setDraggingNoteId(null);
+      setActiveDrawing(null);
+
+      const pts = Array.from(pointersRef.current.values());
+      pinchRef.current = {
+        startDistance: getDistance(pts[0], pts[1]),
+        startScale: scale,
+        startPan: pan,
+        startMid: getMidpoint(pts[0], pts[1]),
+      };
+      return;
+    }
+
+    if (pointersRef.current.size > 2) return;
+
     if (activeTool === 'hand' || spacePressed || e.button === 1) {
       setIsPanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
@@ -326,7 +371,38 @@ export const Canvas: React.FC<CanvasProps> = ({
     setSelectedNoteId(null);
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (pointersRef.current.has(e.pointerId)) {
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    if (pointersRef.current.size === 2 && pinchRef.current && containerRef.current) {
+      const pts = Array.from(pointersRef.current.values());
+      const distance = getDistance(pts[0], pts[1]);
+      const mid = getMidpoint(pts[0], pts[1]);
+      const { startDistance, startScale, startPan, startMid } = pinchRef.current;
+
+      const newScale = Math.min(Math.max(startScale * (distance / startDistance), 0.2), 2.5);
+
+      // Keep the world point that was under the fingers at pinch-start
+      // pinned under wherever the fingers currently are — this is what
+      // makes the zoom feel anchored to the gesture instead of the origin.
+      const rect = containerRef.current.getBoundingClientRect();
+      const startMidLocal = { x: startMid.x - rect.left, y: startMid.y - rect.top };
+      const anchorWorld = {
+        x: (startMidLocal.x - startPan.x) / startScale,
+        y: (startMidLocal.y - startPan.y) / startScale,
+      };
+      const midLocal = { x: mid.x - rect.left, y: mid.y - rect.top };
+
+      setScale(newScale);
+      setPan({
+        x: midLocal.x - anchorWorld.x * newScale,
+        y: midLocal.y - anchorWorld.y * newScale,
+      });
+      return;
+    }
+
     if (isPanning) {
       setPan({
         x: e.clientX - panStart.x,
@@ -389,7 +465,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     );
   };
 
-  const handleMouseUp = () => {
+  const finalizePointerInteraction = () => {
     if (isPanning) {
       setIsPanning(false);
     }
@@ -400,7 +476,19 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
 
     if (activeDrawing) {
-      if (activeDrawing.points && activeDrawing.points.length > 1) {
+      // A plain tap (no movement) with the arrow tool active still produces
+      // two identical points — without this check it would save a
+      // zero-length, invisible arrow. Mice rarely trigger this (a click
+      // is unlikely to have literally zero mouse-move events), but a touch
+      // tap does it every time, so this only shows up once touch is wired up.
+      const [start, end] = activeDrawing.points || [];
+      const isDegenerateArrow =
+        activeDrawing.type === 'arrow' &&
+        start &&
+        end &&
+        Math.hypot(end.x - start.x, end.y - start.y) < 4;
+
+      if (activeDrawing.points && activeDrawing.points.length > 1 && !isDegenerateArrow) {
         let finalDrawing = activeDrawing;
 
         // An arrow dragged out from a note's edge (see handleStartDragNote)
@@ -427,7 +515,22 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
   };
 
-  const handleStartDragNote = (e: React.MouseEvent, noteId: string) => {
+  const handlePointerUp = (e: React.PointerEvent) => {
+    pointersRef.current.delete(e.pointerId);
+
+    if (pointersRef.current.size < 2) {
+      pinchRef.current = null;
+    }
+
+    // Only finalize once every finger/button has been released — with a
+    // pointer still down (e.g. one finger lifted mid-pinch), there's no
+    // single-pointer gesture in flight to finalize yet.
+    if (pointersRef.current.size === 0) {
+      finalizePointerInteraction();
+    }
+  };
+
+  const handleStartDragNote = (e: React.PointerEvent, noteId: string) => {
     e.stopPropagation();
     if (!isEditable || activeTool === 'hand' || spacePressed || activeTool === 'eraser') return;
 
@@ -553,9 +656,10 @@ export const Canvas: React.FC<CanvasProps> = ({
   return (
     <div
       ref={containerRef}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       className={`relative w-screen h-screen overflow-hidden select-none bg-neutral-100 dark:bg-neutral-950 ${
         isPanning || spacePressed || activeTool === 'hand'
           ? 'cursor-grab active:cursor-grabbing'
@@ -569,6 +673,7 @@ export const Canvas: React.FC<CanvasProps> = ({
         backgroundImage: `radial-gradient(circle, rgba(150, 150, 150, 0.25) 1px, transparent 1px)`,
         backgroundSize: `${24 * scale}px ${24 * scale}px`,
         backgroundPosition: `${pan.x}px ${pan.y}px`,
+        touchAction: 'none',
       }}
     >
       {/* Transformed World Layer */}
