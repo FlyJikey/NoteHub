@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
-  Plus, LayoutGrid, Brain, Shield, Send, ArrowRight, 
+  Plus, LayoutGrid, Shield, Send, ArrowRight,
   Trash2, Calendar, FileText, CheckCircle2, ShieldAlert
 } from 'lucide-react';
 import { Board } from '@/types';
@@ -112,10 +112,6 @@ export default function HomePage() {
       <main className="max-w-6xl mx-auto px-6 py-12 flex-1 space-y-12">
         {/* Hero Section */}
         <div className="text-center max-w-3xl mx-auto space-y-4 pt-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/60 text-xs font-semibold text-indigo-700 dark:text-indigo-300">
-            <Brain className="w-3.5 h-3.5 text-amber-500" />
-            <span>Интеллектуальная память проектов на базе Polza.ai</span>
-          </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-neutral-950 dark:text-neutral-50 leading-[1.15]">
             Стол для заметок, который{' '}
             <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 bg-clip-text text-transparent">
