@@ -576,6 +576,9 @@ export const Canvas: React.FC<CanvasProps> = ({
             aiMemory: updatedMemory || prev.aiMemory,
           }));
         }}
+        onTelegramConfigChange={(config) => {
+          setBoard((prev) => ({ ...prev, telegramConfig: config }));
+        }}
       />
     </div>
   );

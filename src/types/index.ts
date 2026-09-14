@@ -112,5 +112,6 @@ export interface Board {
     connected: boolean;
     botUsername?: string;
     inviteCode?: string;
+    chatId?: number;
   };
 }

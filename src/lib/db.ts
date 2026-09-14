@@ -152,9 +152,9 @@ async function saveToKV(key: string, contentStr: string): Promise<boolean> {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/plain',
       },
-      body: JSON.stringify(contentStr),
+      body: contentStr,
     });
     return res.ok;
   } catch (err) {
@@ -424,11 +424,13 @@ export async function getAllBoards(): Promise<Board[]> {
   const kvContent = await fetchFromKV('boards');
   if (kvContent) {
     try {
-      const parsed = JSON.parse(kvContent) as Board[];
-      memoryBoards = parsed;
-      lastBoardsFetchTime = now;
-      writeLocalFile('boards.json', kvContent);
-      return memoryBoards;
+      const parsed = JSON.parse(kvContent);
+      if (Array.isArray(parsed)) {
+        memoryBoards = parsed as Board[];
+        lastBoardsFetchTime = now;
+        writeLocalFile('boards.json', kvContent);
+        return memoryBoards;
+      }
     } catch (e) {}
   }
 
@@ -436,11 +438,13 @@ export async function getAllBoards(): Promise<Board[]> {
   const githubContent = await fetchFromGitHub('boards.json');
   if (githubContent) {
     try {
-      const parsed = JSON.parse(githubContent) as Board[];
-      memoryBoards = parsed;
-      lastBoardsFetchTime = now;
-      writeLocalFile('boards.json', githubContent);
-      return memoryBoards;
+      const parsed = JSON.parse(githubContent);
+      if (Array.isArray(parsed)) {
+        memoryBoards = parsed as Board[];
+        lastBoardsFetchTime = now;
+        writeLocalFile('boards.json', githubContent);
+        return memoryBoards;
+      }
     } catch (e) {}
   }
 
@@ -448,10 +452,12 @@ export async function getAllBoards(): Promise<Board[]> {
   const localContent = readLocalFile('boards.json');
   if (localContent) {
     try {
-      const parsed = JSON.parse(localContent) as Board[];
-      memoryBoards = parsed;
-      lastBoardsFetchTime = now;
-      return memoryBoards;
+      const parsed = JSON.parse(localContent);
+      if (Array.isArray(parsed)) {
+        memoryBoards = parsed as Board[];
+        lastBoardsFetchTime = now;
+        return memoryBoards;
+      }
     } catch (e) {}
   }
 
@@ -584,11 +590,13 @@ export async function getAllUsers(): Promise<UserProfile[]> {
   const kvUsers = await fetchFromKV('users');
   if (kvUsers) {
     try {
-      const parsed = JSON.parse(kvUsers) as UserProfile[];
-      memoryUsers = parsed;
-      lastUsersFetchTime = now;
-      writeLocalFile('users.json', kvUsers);
-      return memoryUsers;
+      const parsed = JSON.parse(kvUsers);
+      if (Array.isArray(parsed)) {
+        memoryUsers = parsed as UserProfile[];
+        lastUsersFetchTime = now;
+        writeLocalFile('users.json', kvUsers);
+        return memoryUsers;
+      }
     } catch (e) {}
   }
 
@@ -596,11 +604,13 @@ export async function getAllUsers(): Promise<UserProfile[]> {
   const githubContent = await fetchFromGitHub('users.json');
   if (githubContent) {
     try {
-      const parsed = JSON.parse(githubContent) as UserProfile[];
-      memoryUsers = parsed;
-      lastUsersFetchTime = now;
-      writeLocalFile('users.json', githubContent);
-      return memoryUsers;
+      const parsed = JSON.parse(githubContent);
+      if (Array.isArray(parsed)) {
+        memoryUsers = parsed as UserProfile[];
+        lastUsersFetchTime = now;
+        writeLocalFile('users.json', githubContent);
+        return memoryUsers;
+      }
     } catch (e) {}
   }
 
@@ -608,10 +618,12 @@ export async function getAllUsers(): Promise<UserProfile[]> {
   const localContent = readLocalFile('users.json');
   if (localContent) {
     try {
-      const parsed = JSON.parse(localContent) as UserProfile[];
-      memoryUsers = parsed;
-      lastUsersFetchTime = now;
-      return memoryUsers;
+      const parsed = JSON.parse(localContent);
+      if (Array.isArray(parsed)) {
+        memoryUsers = parsed as UserProfile[];
+        lastUsersFetchTime = now;
+        return memoryUsers;
+      }
     } catch (e) {}
   }
 

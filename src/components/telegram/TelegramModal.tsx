@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Board, NoteItem, AiMemoryState } from '@/types';
-import { X, Send, Bot, Sparkles, Mic, Copy, Check, MessageSquare } from 'lucide-react';
+import { X, Send, Bot, Sparkles, Mic, Copy, Check, Link2, Unlink } from 'lucide-react';
 
 interface TelegramModalProps {
   board: Board;
   isOpen: boolean;
   onClose: () => void;
   onNoteAdded: (note: NoteItem, updatedMemory?: AiMemoryState) => void;
+  onTelegramConfigChange: (config: Board['telegramConfig']) => void;
 }
 
 export const TelegramModal: React.FC<TelegramModalProps> = ({
@@ -16,8 +17,13 @@ export const TelegramModal: React.FC<TelegramModalProps> = ({
   isOpen,
   onClose,
   onNoteAdded,
+  onTelegramConfigChange,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [botUsername, setBotUsername] = useState<string | null>(null);
+  const [botConfigured, setBotConfigured] = useState<boolean | null>(null);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+
   const [testSender, setTestSender] = useState('Алексей (напарник)');
   const [testText, setTestText] = useState(
     'Заказчик просил не использовать синий цвет в интерфейсе. И нужно спросить в понедельник про формат выгрузки отчетов.'
@@ -25,14 +31,46 @@ export const TelegramModal: React.FC<TelegramModalProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch('/api/telegram/bot-info')
+      .then((res) => res.json())
+      .then((data) => {
+        setBotConfigured(!!data.configured);
+        setBotUsername(data.username || null);
+      })
+      .catch(() => setBotConfigured(false));
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const inviteCode = board.telegramConfig?.inviteCode || 'nh_tg_default';
+  const isConnected = !!board.telegramConfig?.connected && !!board.telegramConfig?.chatId;
+  const deepLink = botUsername ? `https://t.me/${botUsername}?start=${inviteCode}` : null;
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(`/connect ${inviteCode}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDisconnect = async () => {
+    setIsDisconnecting(true);
+    try {
+      const res = await fetch('/api/telegram/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ boardId: board.id }),
+      });
+      const data = await res.json();
+      if (data.telegramConfig) {
+        onTelegramConfigChange(data.telegramConfig);
+      }
+    } catch (err) {
+      console.error('Failed to disconnect Telegram:', err);
+    } finally {
+      setIsDisconnecting(false);
+    }
   };
 
   const handleSimulateIncoming = async () => {
@@ -65,7 +103,7 @@ export const TelegramModal: React.FC<TelegramModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden p-6 space-y-5">
+      <div className="relative w-full max-w-lg rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden p-6 space-y-5 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -89,36 +127,72 @@ export const TelegramModal: React.FC<TelegramModalProps> = ({
           </button>
         </div>
 
-        {/* How it works */}
-        <div className="p-3.5 rounded-xl bg-sky-50/70 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900/40 text-xs space-y-2">
-          <span className="font-bold text-sky-950 dark:text-sky-200 block">
-            Как это решает проблему «забытых чатов»:
-          </span>
-          <p className="text-neutral-600 dark:text-neutral-300 leading-relaxed text-[11px]">
-            Вы общаетесь в Telegram, пересылаете важную мысль боту — бот автоматически создает стикер на столе и передает его в память Polza.ai. ИИ сам извлекает запреты, задачи и вопросы.
-          </p>
-          <div className="flex items-center justify-between pt-1 border-t border-sky-200/50 dark:border-sky-900/30">
-            <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
-              Команда привязки стола:
-            </span>
+        {/* Connection status */}
+        {botConfigured === false ? (
+          <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+            Бот ещё не настроен на сервере: нужно задать переменную окружения{' '}
+            <code className="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 font-mono">TELEGRAM_BOT_TOKEN</code>{' '}
+            и один раз открыть <code className="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 font-mono">/api/telegram/setup</code> после деплоя.
+          </div>
+        ) : isConnected ? (
+          <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-200">
+              <Check className="w-4 h-4 shrink-0" />
+              <span>Этот стол подключен к Telegram-чату. Присылайте текст, голосовые и фото боту.</span>
+            </div>
             <button
-              onClick={handleCopyCode}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white dark:bg-neutral-800 text-[11px] font-mono text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 transition-colors"
+              onClick={handleDisconnect}
+              disabled={isDisconnecting}
+              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-neutral-800 text-[11px] font-semibold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors disabled:opacity-50"
             >
-              {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-              /connect {inviteCode}
+              <Unlink className="w-3 h-3" />
+              {isDisconnecting ? '...' : 'Отключить'}
             </button>
           </div>
-        </div>
+        ) : (
+          <div className="p-3.5 rounded-xl bg-sky-50/70 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900/40 text-xs space-y-2.5">
+            <span className="font-bold text-sky-950 dark:text-sky-200 block">
+              Как это решает проблему «забытых чатов»:
+            </span>
+            <p className="text-neutral-600 dark:text-neutral-300 leading-relaxed text-[11px]">
+              Вы общаетесь в Telegram, пересылаете важную мысль боту — бот автоматически создает стикер на столе и передает его в память Polza.ai. ИИ сам извлекает запреты, задачи и вопросы. Поддерживаются текст, голосовые сообщения (с распознаванием речи) и фото.
+            </p>
+
+            {deepLink && (
+              <a
+                href={deepLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 w-full px-3 py-2 rounded-xl bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 transition-colors"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                Открыть бота и подключить стол
+              </a>
+            )}
+
+            <div className="flex items-center justify-between pt-1 border-t border-sky-200/50 dark:border-sky-900/30">
+              <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
+                Или команда для группового чата:
+              </span>
+              <button
+                onClick={handleCopyCode}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white dark:bg-neutral-800 text-[11px] font-mono text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 transition-colors"
+              >
+                {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                /connect {inviteCode}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Live Simulator for testing right away */}
         <div className="space-y-3 pt-1 border-t border-neutral-100 dark:border-neutral-800">
           <div className="flex items-center justify-between">
             <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              Интерактивный симулятор сообщений из чата
+              Симулятор (без реального Telegram)
             </label>
-            <span className="text-[10px] text-neutral-400">Протестируйте сразу</span>
+            <span className="text-[10px] text-neutral-400">Для быстрого теста</span>
           </div>
 
           <div className="space-y-2">
@@ -133,7 +207,7 @@ export const TelegramModal: React.FC<TelegramModalProps> = ({
               rows={3}
               value={testText}
               onChange={(e) => setTestText(e.target.value)}
-              placeholder="Текст сообщения или расшифрованного войса..."
+              placeholder="Текст сообщения..."
               className="w-full p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-xs text-neutral-800 dark:text-neutral-200 leading-relaxed focus:outline-none focus:ring-1 focus:ring-sky-500 resize-none"
             />
           </div>
@@ -141,7 +215,7 @@ export const TelegramModal: React.FC<TelegramModalProps> = ({
           <div className="flex items-center justify-between pt-1">
             <span className="text-[11px] text-neutral-400 flex items-center gap-1">
               <Mic className="w-3 h-3 text-rose-500" />
-              Поддерживает расшифровку голосовых
+              В реальном боте войсы распознаются автоматически
             </span>
 
             <button
