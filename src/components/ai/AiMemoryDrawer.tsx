@@ -156,6 +156,15 @@ export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
     setNewQuestionText('');
   };
 
+  const handleRemoveQuestion = (id: string) => {
+    const newMem = {
+      ...memory,
+      clientQuestions: memory.clientQuestions.filter((q) => q.id !== id),
+    };
+    setMemory(newMem);
+    onUpdateMemory(newMem);
+  };
+
   // Tasks handlers
   const handleToggleTaskStatus = (id: string) => {
     const task = memory.tasks.find((t) => t.id === id);
@@ -194,6 +203,15 @@ export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
     setMemory(newMem);
     onUpdateMemory(newMem);
     setNewTaskText('');
+  };
+
+  const handleRemoveTask = (id: string) => {
+    const newMem = {
+      ...memory,
+      tasks: memory.tasks.filter((t) => t.id !== id),
+    };
+    setMemory(newMem);
+    onUpdateMemory(newMem);
   };
 
   // Chat message handler
@@ -439,6 +457,12 @@ export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
                       </div>
                       <span>{q.text}</span>
                     </button>
+                    <button
+                      onClick={() => handleRemoveQuestion(q.id)}
+                      className="text-neutral-400 hover:text-rose-500 p-0.5"
+                    >
+                      ×
+                    </button>
                   </div>
                 ))}
 
@@ -512,6 +536,12 @@ export const AiMemoryDrawer: React.FC<AiMemoryDrawerProps> = ({
                       >
                         {task.status === 'done' ? 'Сделано' : 'В работе'}
                       </span>
+                      <button
+                        onClick={() => handleRemoveTask(task.id)}
+                        className="text-neutral-400 hover:text-rose-500 p-0.5"
+                      >
+                        ×
+                      </button>
                     </div>
                   </div>
                 ))}
